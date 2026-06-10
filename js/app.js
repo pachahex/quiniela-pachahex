@@ -1,110 +1,240 @@
-// --- MOCK DATABASE (Para sustituir luego con Firestore) ---
-const STORAGE_KEY = 'quiniela_pachahex_db';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { 
+    getAuth, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged, 
+    signOut 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    collection, 
+    getDocs 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Inicialización de DB
-function initDB() {
-    let db = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!db) {
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth();
-        const currentDay = new Date().getDate();
+// --- CONFIGURACIÓN DE FIREBASE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDWmu2CBHaBUnfrXqAYahIVJFHBIOU1gu4",
+  authDomain: "quiniela-pachahex.firebaseapp.com",
+  projectId: "quiniela-pachahex",
+  storageBucket: "quiniela-pachahex.firebasestorage.app",
+  messagingSenderId: "494691099080",
+  appId: "1:494691099080:web:6a74fe227bb2fe170160fd"
+};
 
-        // Generar Partidos (48 en total)
-        // J1: 16 partidos (cierran individualmente 1 hora antes)
-        // Haremos que algunos ya estén cerrados y otros no para poder probar.
-        const j1Matches = Array.from({length: 16}, (_, i) => ({
-            id: `j1_m${i+1}`, jornada: 1, 
-            equipo_local: `Equipo Local ${i+1}`, equipo_visitante: `Equipo Visitante ${i+1}`,
-            fecha_hora: new Date(currentYear, currentMonth, currentDay, new Date().getHours() + (i - 2), 0).toISOString(),
-            goles_local_real: null, goles_visitante_real: null
-        }));
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-        // J2 y J3 (32 partidos) cierran MASIVAMENTE cuando inicia el primer partido de la J2
-        const j2StartDate = new Date(currentYear, currentMonth, currentDay + 1, 10, 0); // Mañana
-        const j2Matches = Array.from({length: 16}, (_, i) => ({
-            id: `j2_m${i+1}`, jornada: 2, 
-            equipo_local: `Equipo Local ${i+17}`, equipo_visitante: `Equipo Visitante ${i+17}`,
-            fecha_hora: new Date(j2StartDate.getTime() + (i * 2 * 60 * 60 * 1000)).toISOString(),
-            goles_local_real: null, goles_visitante_real: null
-        }));
-
-        const j3StartDate = new Date(currentYear, currentMonth, currentDay + 3, 10, 0); 
-        const j3Matches = Array.from({length: 16}, (_, i) => ({
-            id: `j3_m${i+1}`, jornada: 3, 
-            equipo_local: `Equipo Local ${i+33}`, equipo_visitante: `Equipo Visitante ${i+33}`,
-            fecha_hora: new Date(j3StartDate.getTime() + (i * 2 * 60 * 60 * 1000)).toISOString(),
-            goles_local_real: null, goles_visitante_real: null
-        }));
-
-        db = {
-            users: [
-                { username: 'admin', password: 'admin123', role: 'admin', groupId: null },
-                { username: 'user1', password: 'pass123', role: 'user', groupId: 'g1' },
-                { username: 'user2', password: 'pass123', role: 'user', groupId: 'g2' }
-            ],
-            groups: [
-                { id: 'g1', name: 'Quotec' },
-                { id: 'g2', name: 'Chicos del Barrio' }
-            ],
-            matches: [...j1Matches, ...j2Matches, ...j3Matches],
-            predictions: {} // userId -> { p_j1_m1: {l: 1, v: 2}, specials: {goleador: ''...} }
-        };
-        saveDB(db);
-    }
-    return db;
-}
-
-function saveDB(db) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-}
-
-let APP_DB = initDB();
+// --- ESTADO DE LA APLICACIÓN ---
 let currentUser = null;
+let currentUserData = null; // Doc from 'usuarios'
+let isRegisterMode = false;
 
-// --- FIREBASE ASYNC WRAPPERS (Simulados) ---
+// Generar Partidos Base (Mundial - 48 partidos)
+const currentYear = new Date().getFullYear();
+const currentMonth = new Date().getMonth();
+const currentDay = new Date().getDate();
+
+const j1Matches = Array.from({length: 16}, (_, i) => ({
+    id: `j1_m${i+1}`, jornada: 1, 
+    equipo_local: `Equipo Local ${i+1}`, equipo_visitante: `Equipo Visitante ${i+1}`,
+    fecha_hora: new Date(currentYear, currentMonth, currentDay, new Date().getHours() + (i - 2), 0).toISOString(),
+    goles_local_real: null, goles_visitante_real: null
+}));
+const j2StartDate = new Date(currentYear, currentMonth, currentDay + 1, 10, 0);
+const j2Matches = Array.from({length: 16}, (_, i) => ({
+    id: `j2_m${i+1}`, jornada: 2, 
+    equipo_local: `Equipo Local ${i+17}`, equipo_visitante: `Equipo Visitante ${i+17}`,
+    fecha_hora: new Date(j2StartDate.getTime() + (i * 2 * 60 * 60 * 1000)).toISOString(),
+    goles_local_real: null, goles_visitante_real: null
+}));
+const j3StartDate = new Date(currentYear, currentMonth, currentDay + 3, 10, 0); 
+const j3Matches = Array.from({length: 16}, (_, i) => ({
+    id: `j3_m${i+1}`, jornada: 3, 
+    equipo_local: `Equipo Local ${i+33}`, equipo_visitante: `Equipo Visitante ${i+33}`,
+    fecha_hora: new Date(j3StartDate.getTime() + (i * 2 * 60 * 60 * 1000)).toISOString(),
+    goles_local_real: null, goles_visitante_real: null
+}));
+
+let APP_MATCHES = [...j1Matches, ...j2Matches, ...j3Matches];
+
+// --- EVENT LISTENERS ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Auth UI
+    document.getElementById('btn-login').addEventListener('click', () => handleAuth(false));
+    document.getElementById('btn-register').addEventListener('click', () => handleAuth(true));
+    document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+    
+    document.getElementById('toggle-auth-mode').addEventListener('click', (e) => {
+        e.preventDefault();
+        isRegisterMode = !isRegisterMode;
+        
+        document.getElementById('auth-title').innerText = isRegisterMode ? 'Crear Cuenta' : 'Iniciar Sesión';
+        document.getElementById('auth-subtitle').innerText = isRegisterMode ? 'Regístrate para participar.' : 'Ingresa tus credenciales para continuar.';
+        document.getElementById('btn-login').style.display = isRegisterMode ? 'none' : 'block';
+        document.getElementById('btn-register').style.display = isRegisterMode ? 'block' : 'none';
+        e.target.innerText = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí';
+        document.getElementById('login-error').innerText = '';
+    });
+
+    // Tab Navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetId = e.target.getAttribute('data-target');
+            e.target.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            e.target.parentElement.parentElement.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+
+    // Save Predictions UI
+    document.getElementById('btn-save-predictions').addEventListener('click', saveCurrentPredictions);
+    document.getElementById('btn-save-specials').addEventListener('click', saveCurrentPredictions);
+
+    // Modal Close
+    document.querySelector('.close-modal').addEventListener('click', () => {
+        document.getElementById('other-user-predictions-modal').style.display = 'none';
+    });
+});
+
+// --- AUTH & FIREBASE LOGIC ---
+function formatEmail(username) {
+    return `${username.toLowerCase().replace(/\s+/g, '')}@pachahex.local`;
+}
+
+async function handleAuth(isRegister) {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    const errorMsg = document.getElementById('login-error');
+    
+    if (!username || !password) {
+        errorMsg.innerText = 'Por favor, completa todos los campos.';
+        return;
+    }
+
+    const email = formatEmail(username);
+    errorMsg.innerText = 'Cargando...';
+
+    try {
+        if (isRegister) {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            // Crear documento de usuario en Firestore
+            await setDoc(doc(db, "usuarios", userCredential.user.uid), {
+                nombre_usuario: username,
+                puntos_totales: 0,
+                rol: "user",
+                grupo_id: ""
+            });
+        } else {
+            await signInWithEmailAndPassword(auth, email, password);
+        }
+        errorMsg.innerText = '';
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'auth/email-already-in-use') {
+            errorMsg.innerText = 'El nombre de usuario ya está registrado.';
+        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            errorMsg.innerText = 'Credenciales incorrectas.';
+        } else {
+            errorMsg.innerText = `Error: ${error.message}`;
+        }
+    }
+}
+
+onAuthStateChanged(auth, async (user) => {
+    document.getElementById('app-loader').style.display = 'none';
+    
+    if (user) {
+        currentUser = user;
+        
+        // Fetch user metadata from Firestore
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        if (userDoc.exists()) {
+            currentUserData = userDoc.data();
+        } else {
+            currentUserData = { nombre_usuario: "Desconocido", rol: "user", grupo_id: "" };
+        }
+
+        // Obtener resultados oficiales globales
+        await fetchOfficialResults();
+
+        // Configurar UI común
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('nav-controls').style.display = 'flex';
+        document.getElementById('current-user-info').innerText = currentUserData.nombre_usuario;
+
+        // Routing basado en ROL
+        if (currentUserData.rol === 'admin') {
+            document.getElementById('admin-section').style.display = 'block';
+            document.getElementById('user-section').style.display = 'none';
+            renderOfficialResults('admin-matches-container', false);
+        } else {
+            document.getElementById('admin-section').style.display = 'none';
+            document.getElementById('user-section').style.display = 'block';
+            document.querySelector('#group-title-display span').innerText = currentUserData.grupo_id || 'Sin Grupo Asignado';
+            
+            await renderUserViews();
+        }
+    } else {
+        currentUser = null;
+        currentUserData = null;
+        document.getElementById('nav-controls').style.display = 'none';
+        document.getElementById('admin-section').style.display = 'none';
+        document.getElementById('user-section').style.display = 'none';
+        document.getElementById('login-section').style.display = 'block';
+        document.getElementById('login-username').value = '';
+        document.getElementById('login-password').value = '';
+    }
+});
+
+// --- BASE DE DATOS Y LÓGICA ---
+
+async function fetchOfficialResults() {
+    const resDoc = await getDoc(doc(db, "resultados", "oficiales"));
+    if (resDoc.exists()) {
+        const oficiales = resDoc.data();
+        APP_MATCHES = APP_MATCHES.map(m => {
+            if (oficiales[m.id]) {
+                m.goles_local_real = oficiales[m.id].l;
+                m.goles_visitante_real = oficiales[m.id].v;
+            }
+            return m;
+        });
+    }
+}
+
 async function saveUserPredictions(userId, matchPredictions, specials) {
-    await new Promise(r => setTimeout(r, 400)); // Network delay sim
-    APP_DB = JSON.parse(localStorage.getItem(STORAGE_KEY)); // refresh
-    if (!APP_DB.predictions[userId]) APP_DB.predictions[userId] = {};
-    APP_DB.predictions[userId].matches = matchPredictions;
-    APP_DB.predictions[userId].specials = specials;
-    saveDB(APP_DB);
-    return true;
+    await setDoc(doc(db, "predicciones", userId), {
+        matches: matchPredictions,
+        specials: specials
+    }, { merge: true });
 }
 
 async function loadUserPredictions(userId) {
-    await new Promise(r => setTimeout(r, 200));
-    APP_DB = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return APP_DB.predictions[userId] || { matches: {}, specials: { goleador: '', jugador: '', portero: '' } };
-}
-
-async function getAllGroupPredictions(groupId) {
-    // Retorna predicciones de todos los miembros del grupo
-    const usersInGroup = APP_DB.users.filter(u => u.groupId === groupId);
-    const result = {};
-    for (let u of usersInGroup) {
-        result[u.username] = APP_DB.predictions[u.username] || { matches: {}, specials: {} };
+    const docSnap = await getDoc(doc(db, "predicciones", userId));
+    if (docSnap.exists()) {
+        return docSnap.data();
     }
-    return result;
+    return { matches: {}, specials: { goleador: '', jugador: '', portero: '' } };
 }
-
-// --- LÓGICA DE NEGOCIO ---
 
 function isMatchLocked(match) {
     const now = new Date();
     if (match.jornada === 1) {
-        // Cierra 1 hora antes
         const lockTime = new Date(new Date(match.fecha_hora).getTime() - (60 * 60 * 1000));
         return now >= lockTime;
     } else {
-        // Jornadas 2 y 3 cierran juntas cuando inicia el primer partido de la J2
-        const firstJ2Match = APP_DB.matches.find(m => m.jornada === 2);
+        const firstJ2Match = APP_MATCHES.find(m => m.jornada === 2);
         const lockTime = new Date(firstJ2Match.fecha_hora);
         return now >= lockTime;
     }
 }
 
-// Retorna 5 (Exacto), 3 (Ganador), 1 (Goles un equipo), 0 (Nada)
 function calculateMatchPoints(predL, predV, realL, realV) {
     if (predL == null || predV == null || predL === '' || predV === '' || realL == null || realV == null) return 0;
     
@@ -117,128 +247,32 @@ function calculateMatchPoints(predL, predV, realL, realV) {
     
     const pWinner = pL > pV ? 1 : (pL < pV ? 2 : 0);
     const rWinner = rL > rV ? 1 : (rL < rV ? 2 : 0);
-    
     if (pWinner === rWinner) return 3;
-    
     if (pL === rL || pV === rV) return 1;
-    
     return 0;
-}
-
-// Calcula puntos totales de un usuario para Fase A
-function calculateTotalPoints(userId) {
-    const preds = APP_DB.predictions[userId]?.matches || {};
-    let total = 0;
-    
-    APP_DB.matches.forEach(m => {
-        if (m.goles_local_real != null && m.goles_visitante_real != null) {
-            const p = preds[m.id];
-            if (p) {
-                total += calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
-            }
-        }
-    });
-
-    // Nota: Premios especiales se evalúan en Fase B, por lo que no se suman aquí.
-    return total;
-}
-
-// --- UI LOGIC ---
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Login
-    document.getElementById('btn-login').addEventListener('click', handleLogin);
-    document.getElementById('btn-logout').addEventListener('click', handleLogout);
-
-    // Tab Navigation
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const targetId = e.target.getAttribute('data-target');
-            // Quitar active de botones hermanos
-            e.target.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            
-            // Mostrar contenido
-            e.target.parentElement.parentElement.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(targetId).classList.add('active');
-        });
-    });
-
-    // Guardar Predicciones
-    document.getElementById('btn-save-predictions').addEventListener('click', saveCurrentPredictions);
-    document.getElementById('btn-save-specials').addEventListener('click', saveCurrentPredictions);
-
-    // Cerrar Modal
-    document.querySelector('.close-modal').addEventListener('click', () => {
-        document.getElementById('other-user-predictions-modal').style.display = 'none';
-    });
-
-    // Admin Actions
-    document.getElementById('btn-create-group').addEventListener('click', createGroup);
-    document.getElementById('btn-create-user').addEventListener('click', createUser);
-});
-
-function handleLogin() {
-    const userVal = document.getElementById('login-username').value.trim();
-    const passVal = document.getElementById('login-password').value.trim();
-    
-    APP_DB = JSON.parse(localStorage.getItem(STORAGE_KEY)); // Refresh DB
-    const user = APP_DB.users.find(u => u.username === userVal && u.password === passVal);
-    
-    if (user) {
-        currentUser = user;
-        document.getElementById('login-error').innerText = '';
-        document.getElementById('login-section').style.display = 'none';
-        document.getElementById('nav-controls').style.display = 'flex';
-        document.getElementById('current-user-info').innerText = user.username;
-
-        if (user.role === 'admin') {
-            document.getElementById('admin-section').style.display = 'block';
-            renderAdminViews();
-        } else {
-            document.getElementById('user-section').style.display = 'block';
-            const group = APP_DB.groups.find(g => g.id === user.groupId);
-            document.querySelector('#group-title-display span').innerText = group ? group.name : 'Sin Grupo';
-            renderUserViews();
-        }
-    } else {
-        document.getElementById('login-error').innerText = 'Usuario o contraseña incorrectos.';
-    }
-}
-
-function handleLogout() {
-    currentUser = null;
-    document.getElementById('nav-controls').style.display = 'none';
-    document.getElementById('admin-section').style.display = 'none';
-    document.getElementById('user-section').style.display = 'none';
-    document.getElementById('login-section').style.display = 'block';
-    document.getElementById('login-username').value = '';
-    document.getElementById('login-password').value = '';
 }
 
 // --- USER VIEWS ---
 async function renderUserViews() {
     await renderPredictionsForm();
-    renderRankingTable();
-    renderOfficialResults('official-results-container', true); // readonly view
+    await renderRankingTable();
+    renderOfficialResults('official-results-container', true);
 }
 
 async function renderPredictionsForm() {
     const container = document.getElementById('user-jornadas-container');
     container.innerHTML = '';
 
-    const userPreds = await loadUserPredictions(currentUser.username);
+    const userPreds = await loadUserPredictions(currentUser.uid);
     const preds = userPreds.matches || {};
     const specials = userPreds.specials || { goleador: '', jugador: '', portero: '' };
 
-    // Fill Specials
     document.getElementById('pred-goleador').value = specials.goleador || '';
     document.getElementById('pred-jugador').value = specials.jugador || '';
     document.getElementById('pred-portero').value = specials.portero || '';
 
     for (let j = 1; j <= 3; j++) {
-        const jMatches = APP_DB.matches.filter(m => m.jornada === j);
-        
+        const jMatches = APP_MATCHES.filter(m => m.jornada === j);
         const jornadaDiv = document.createElement('div');
         jornadaDiv.innerHTML = `<div class="jornada-header">
             <h3>Jornada ${j}</h3>
@@ -256,7 +290,6 @@ async function renderPredictionsForm() {
             const card = document.createElement('div');
             card.className = `match-card ${isLocked ? 'locked' : ''}`;
             
-            // Badge si ya hay resultado oficial
             let badgeHtml = '';
             if (match.goles_local_real != null && match.goles_visitante_real != null && isLocked) {
                 const pts = calculateMatchPoints(predL, predV, match.goles_local_real, match.goles_visitante_real);
@@ -284,7 +317,6 @@ async function renderPredictionsForm() {
             `;
             grid.appendChild(card);
         });
-        
         jornadaDiv.appendChild(grid);
         container.appendChild(jornadaDiv);
     }
@@ -292,19 +324,23 @@ async function renderPredictionsForm() {
 
 async function saveCurrentPredictions() {
     const saveStatus = document.getElementById('save-status');
-    saveStatus.innerText = 'Guardando...';
+    saveStatus.innerText = 'Guardando en la nube...';
     saveStatus.style.color = 'var(--color-primary)';
 
     const matchPreds = {};
+    
+    // Obtener las existentes para no sobreescribir las bloqueadas
+    const currentData = await loadUserPredictions(currentUser.uid);
+    const existingMatches = currentData.matches || {};
+
     document.querySelectorAll('.score-input.pred-l').forEach(input => {
         const id = input.getAttribute('data-id');
         const vInput = document.querySelector(`.score-input.pred-v[data-id="${id}"]`);
+        
         if (!input.disabled) {
             matchPreds[id] = { l: input.value, v: vInput.value };
-        } else {
-            // Mantener las existentes si están bloqueados
-            const existing = APP_DB.predictions[currentUser.username]?.matches?.[id];
-            if (existing) matchPreds[id] = existing;
+        } else if (existingMatches[id]) {
+            matchPreds[id] = existingMatches[id];
         }
     });
 
@@ -314,132 +350,116 @@ async function saveCurrentPredictions() {
         portero: document.getElementById('pred-portero').value.trim()
     };
 
-    await saveUserPredictions(currentUser.username, matchPreds, specials);
-    
-    saveStatus.innerText = '¡Guardado con éxito!';
-    saveStatus.style.color = 'var(--color-success)';
+    try {
+        await saveUserPredictions(currentUser.uid, matchPreds, specials);
+        saveStatus.innerText = '¡Guardado con éxito!';
+        saveStatus.style.color = 'var(--color-success)';
+    } catch (e) {
+        console.error(e);
+        saveStatus.innerText = 'Error al guardar.';
+        saveStatus.style.color = 'var(--color-error)';
+    }
+
     setTimeout(() => { saveStatus.innerText = ''; }, 3000);
-    
-    renderRankingTable(); // Actualiza por si cambiaron resultados oficiales y él acaba de guardar (edge case)
 }
 
-function renderRankingTable() {
+async function renderRankingTable() {
     const list = document.getElementById('ranking-list');
-    list.innerHTML = '';
+    list.innerHTML = 'Calculando posiciones...';
     
-    const usersInGroup = APP_DB.users.filter(u => u.groupId === currentUser.groupId);
-    
-    const ranking = usersInGroup.map(u => ({
-        username: u.username,
-        points: calculateTotalPoints(u.username)
-    })).sort((a, b) => b.points - a.points); // Descending
-    
-    ranking.forEach((u, index) => {
-        const item = document.createElement('div');
-        item.className = 'ranking-item';
-        item.innerHTML = `
-            <div class="rank-pos">${index + 1}</div>
-            <div class="rank-name">${u.username} ${u.username === currentUser.username ? '(Tú)' : ''}</div>
-            <div class="rank-pts">${u.points}</div>
-        `;
+    try {
+        // Traer todos los usuarios del mismo grupo (simplificado, en prod se haría una query if currentUserData.grupo_id != "")
+        // Por ahora, traemos todos los usuarios (para probar)
+        const querySnapshot = await getDocs(collection(db, "usuarios"));
+        let usersData = [];
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            data.uid = docSnap.id;
+            usersData.push(data);
+        });
         
-        // Al hacer click, ver predicciones de este usuario (solo las cerradas)
-        item.addEventListener('click', () => showOtherUserPredictions(u.username));
-        list.appendChild(item);
-    });
+        // Si hay sistema de grupos estricto:
+        // if (currentUserData.grupo_id) { usersData = usersData.filter(u => u.grupo_id === currentUserData.grupo_id); }
+
+        // Fetch de todas las predicciones de estos usuarios
+        for (let u of usersData) {
+            const preds = await loadUserPredictions(u.uid);
+            let total = 0;
+            APP_MATCHES.forEach(m => {
+                if (m.goles_local_real != null && m.goles_visitante_real != null) {
+                    const p = preds.matches?.[m.id];
+                    if (p) {
+                        total += calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
+                    }
+                }
+            });
+            u.puntos_calculados = total;
+            
+            // Opcional: Actualizar el field puntos_totales en Firestore aquí (o mediante Cloud Functions)
+            // await setDoc(doc(db, "usuarios", u.uid), { puntos_totales: total }, { merge: true });
+        }
+
+        usersData.sort((a, b) => b.puntos_calculados - a.puntos_calculados);
+        
+        list.innerHTML = '';
+        usersData.forEach((u, index) => {
+            const item = document.createElement('div');
+            item.className = 'ranking-item';
+            item.innerHTML = `
+                <div class="rank-pos">${index + 1}</div>
+                <div class="rank-name">${u.nombre_usuario} ${u.uid === currentUser.uid ? '(Tú)' : ''}</div>
+                <div class="rank-pts">${u.puntos_calculados}</div>
+            `;
+            item.addEventListener('click', () => showOtherUserPredictions(u.uid, u.nombre_usuario));
+            list.appendChild(item);
+        });
+
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = 'Error cargando ranking';
+    }
 }
 
-function showOtherUserPredictions(username) {
-    // Si el usuario es el admin, no puede verlas aquí (admin no entra a vistas de usuario normal).
-    // Solo mostramos partidos cerrados.
-    const preds = APP_DB.predictions[username]?.matches || {};
+async function showOtherUserPredictions(targetUid, targetUsername) {
     const modal = document.getElementById('other-user-predictions-modal');
-    document.getElementById('modal-user-name').innerText = `Predicciones de ${username}`;
+    document.getElementById('modal-user-name').innerText = `Predicciones de ${targetUsername}`;
     
     const list = document.getElementById('modal-predictions-list');
-    list.innerHTML = '';
+    list.innerHTML = 'Cargando...';
+    modal.style.display = 'flex';
 
-    const closedMatches = APP_DB.matches.filter(m => isMatchLocked(m));
+    const closedMatches = APP_MATCHES.filter(m => isMatchLocked(m));
     if (closedMatches.length === 0) {
         list.innerHTML = '<p>Aún no hay partidos cerrados. Las predicciones son secretas hasta el cierre.</p>';
-    } else {
-        const grid = document.createElement('div');
-        grid.className = 'match-grid';
-        
-        closedMatches.forEach(match => {
-            const p = preds[match.id];
-            const pL = p ? p.l : '-';
-            const pV = p ? p.v : '-';
-            
-            let html = `
-                <div class="match-card">
-                    <div class="match-header"><span>${match.equipo_local} vs ${match.equipo_visitante}</span></div>
-                    <div style="text-align:center; font-weight:bold; font-size: 1.2rem;">
-                        ${pL} - ${pV}
-                    </div>
-                </div>
-            `;
-            grid.innerHTML += html;
-        });
-        list.appendChild(grid);
+        return;
     }
+
+    const otherData = await loadUserPredictions(targetUid);
+    const preds = otherData.matches || {};
+
+    list.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'match-grid';
     
-    modal.style.display = 'flex';
+    closedMatches.forEach(match => {
+        const p = preds[match.id];
+        const pL = p ? p.l : '-';
+        const pV = p ? p.v : '-';
+        
+        let html = `
+            <div class="match-card">
+                <div class="match-header"><span>${match.equipo_local} vs ${match.equipo_visitante}</span></div>
+                <div style="text-align:center; font-weight:bold; font-size: 1.2rem;">
+                    ${pL} - ${pV}
+                </div>
+            </div>
+        `;
+        grid.innerHTML += html;
+    });
+    list.appendChild(grid);
 }
 
 // --- ADMIN VIEWS ---
-function renderAdminViews() {
-    renderGroupsList();
-    populateGroupSelect();
-    renderOfficialResults('admin-matches-container', false);
-}
-
-function renderGroupsList() {
-    const list = document.getElementById('admin-groups-list');
-    list.innerHTML = '';
-    APP_DB.groups.forEach(g => {
-        const usersCount = APP_DB.users.filter(u => u.groupId === g.id).length;
-        list.innerHTML += `<div class="card" style="padding: 1rem; margin-bottom: 0.5rem;">
-            <strong>${g.name}</strong> - ${usersCount} miembros
-        </div>`;
-    });
-}
-
-function populateGroupSelect() {
-    const select = document.getElementById('new-user-group');
-    select.innerHTML = '<option value="">Selecciona un Grupo...</option>';
-    APP_DB.groups.forEach(g => {
-        select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
-    });
-}
-
-function createGroup() {
-    const name = document.getElementById('new-group-name').value.trim();
-    if (!name) return alert("Ingresa un nombre");
-    const newId = 'g' + (APP_DB.groups.length + 1);
-    APP_DB.groups.push({ id: newId, name: name });
-    saveDB(APP_DB);
-    document.getElementById('new-group-name').value = '';
-    renderAdminViews();
-    alert("Grupo creado");
-}
-
-function createUser() {
-    const u = document.getElementById('new-user-username').value.trim();
-    const p = document.getElementById('new-user-password').value.trim();
-    const g = document.getElementById('new-user-group').value;
-    if (!u || !p || !g) return alert("Completa todos los campos");
-    if (APP_DB.users.find(usr => usr.username === u)) return alert("Usuario ya existe");
-    
-    APP_DB.users.push({ username: u, password: p, role: 'user', groupId: g });
-    saveDB(APP_DB);
-    document.getElementById('new-user-username').value = '';
-    document.getElementById('new-user-password').value = '';
-    renderAdminViews();
-    alert("Usuario creado");
-}
-
-// Reutilizable para User (readonly) y Admin (editable)
 function renderOfficialResults(containerId, isReadOnly) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
@@ -447,7 +467,7 @@ function renderOfficialResults(containerId, isReadOnly) {
     const grid = document.createElement('div');
     grid.className = 'match-grid';
 
-    APP_DB.matches.forEach(match => {
+    APP_MATCHES.forEach(match => {
         const isLocked = isMatchLocked(match);
         const card = document.createElement('div');
         card.className = 'match-card';
@@ -496,17 +516,38 @@ function renderOfficialResults(containerId, isReadOnly) {
 
     if (!isReadOnly) {
         document.querySelectorAll('.btn-save-admin-res').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
+                btn.innerText = 'Guardando...';
                 const id = e.target.getAttribute('data-id');
                 const card = e.target.closest('.match-card');
                 const lVal = card.querySelector('.admin-res-l').value;
                 const vVal = card.querySelector('.admin-res-v').value;
                 
-                const matchIndex = APP_DB.matches.findIndex(m => m.id === id);
-                APP_DB.matches[matchIndex].goles_local_real = lVal === '' ? null : parseInt(lVal);
-                APP_DB.matches[matchIndex].goles_visitante_real = vVal === '' ? null : parseInt(vVal);
-                saveDB(APP_DB);
-                alert('Resultado Oficial Actualizado');
+                try {
+                    // Update locally
+                    const matchIndex = APP_MATCHES.findIndex(m => m.id === id);
+                    APP_MATCHES[matchIndex].goles_local_real = lVal === '' ? null : parseInt(lVal);
+                    APP_MATCHES[matchIndex].goles_visitante_real = vVal === '' ? null : parseInt(vVal);
+                    
+                    // Guardar en Firestore 'resultados/oficiales'
+                    const resToSave = {};
+                    resToSave[id] = {
+                        l: APP_MATCHES[matchIndex].goles_local_real,
+                        v: APP_MATCHES[matchIndex].goles_visitante_real
+                    };
+                    
+                    await setDoc(doc(db, "resultados", "oficiales"), resToSave, { merge: true });
+                    
+                    btn.innerText = '¡Guardado!';
+                    btn.style.backgroundColor = 'var(--color-success)';
+                    setTimeout(() => { 
+                        btn.innerText = 'Guardar Resultado';
+                        btn.style.backgroundColor = 'var(--color-secondary)';
+                    }, 2000);
+                } catch (error) {
+                    console.error("Error saving official results", error);
+                    btn.innerText = 'Error al guardar';
+                }
             });
         });
     }

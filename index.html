@@ -21,72 +21,59 @@
     </nav>
 
     <main class="container">
-        <!-- Login Section -->
-        <section id="login-section" class="view-section active">
+        <!-- Loader inicial -->
+        <div id="app-loader" style="text-align: center; margin-top: 50px;">
+            <h2><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando Quiniela...</h2>
+        </div>
+
+        <!-- Login / Register Section -->
+        <section id="login-section" class="view-section" style="display: none;">
             <div class="login-card">
-                <h2>Iniciar Sesión</h2>
-                <p>Ingresa tus credenciales para continuar.</p>
+                <h2 id="auth-title">Iniciar Sesión</h2>
+                <p id="auth-subtitle">Ingresa tus credenciales para continuar.</p>
                 <div class="form-group">
-                    <label for="login-username">Usuario</label>
-                    <input type="text" id="login-username" placeholder="Ej: diego_admin o jperez">
+                    <label for="login-username">Nombre de Usuario</label>
+                    <input type="text" id="login-username" placeholder="Ej: jperez" autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="login-password">Contraseña</label>
-                    <input type="password" id="login-password" placeholder="••••••••">
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
                 </div>
-                <button id="btn-login" class="btn btn-primary">Entrar</button>
-                <div class="login-hint">
-                    <small>Admin: <strong>admin</strong> / <strong>admin123</strong></small><br>
-                    <small>Usuario Quotec: <strong>user1</strong> / <strong>pass123</strong></small><br>
-                    <small>Usuario Chicos: <strong>user2</strong> / <strong>pass123</strong></small>
-                </div>
+                
+                <button id="btn-login" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">Entrar</button>
+                <button id="btn-register" class="btn btn-secondary" style="width: 100%; display: none; margin-bottom: 10px;">Registrarse</button>
+                
+                <p style="margin-top: 15px;">
+                    <a href="#" id="toggle-auth-mode" style="color: var(--color-primary); text-decoration: none; font-weight: 600;">¿No tienes cuenta? Regístrate aquí</a>
+                </p>
+                
                 <div id="login-error" class="error-msg"></div>
             </div>
         </section>
 
         <!-- Admin Section -->
         <section id="admin-section" class="view-section" style="display: none;">
-            <div class="admin-header">
-                <h2>Panel de Administrador</h2>
+            <div class="admin-header" style="background-color: #333; color: white; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1rem;">
+                <h2><i class="fa-solid fa-shield-halved"></i> Panel de Administrador</h2>
             </div>
             
             <div class="tabs">
-                <button class="tab-btn active" data-target="admin-groups">Grupos y Usuarios</button>
-                <button class="tab-btn" data-target="admin-results">Resultados Oficiales</button>
+                <button class="tab-btn active" data-target="admin-results">Resultados Oficiales</button>
+                <button class="tab-btn" data-target="admin-groups">Gestión de Grupos (En Desarrollo)</button>
             </div>
 
-            <div class="tab-content active" id="admin-groups">
-                <div class="card">
-                    <h3>Crear Nuevo Grupo</h3>
-                    <div class="form-row">
-                        <input type="text" id="new-group-name" placeholder="Nombre del Grupo (ej: Los Primos)">
-                        <button id="btn-create-group" class="btn btn-primary">Crear Grupo</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3>Crear Usuario y Asignar a Grupo</h3>
-                    <div class="form-row">
-                        <input type="text" id="new-user-username" placeholder="Usuario">
-                        <input type="password" id="new-user-password" placeholder="Contraseña">
-                        <select id="new-user-group">
-                            <option value="">Selecciona un Grupo...</option>
-                        </select>
-                        <button id="btn-create-user" class="btn btn-primary">Crear Usuario</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3>Grupos Actuales</h3>
-                    <div id="admin-groups-list" class="groups-list"></div>
-                </div>
-            </div>
-
-            <div class="tab-content" id="admin-results">
+            <div class="tab-content active" id="admin-results">
                 <div class="card">
                     <h3>Actualizar Resultados del Mundial</h3>
-                    <p class="text-muted">Los usuarios verán reflejados estos resultados para el cálculo de sus puntos.</p>
+                    <p class="text-muted">Los usuarios verán reflejados estos resultados. Guarda para actualizar los puntos globales.</p>
                     <div id="admin-matches-container"></div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="admin-groups">
+                <div class="card">
+                    <h3>Grupos</h3>
+                    <p class="text-muted">Aquí podrás crear grupos y asignar usuarios en el futuro.</p>
                 </div>
             </div>
         </section>
@@ -116,7 +103,7 @@
                     </div>
                 </div>
 
-                <!-- Modal de predicciones de otro usuario (solo si cerradas) -->
+                <!-- Modal de predicciones de otro usuario -->
                 <div id="other-user-predictions-modal" class="modal" style="display: none;">
                     <div class="modal-content">
                         <span class="close-modal">&times;</span>
@@ -131,7 +118,7 @@
             <div class="tab-content" id="user-predictions">
                 <div class="card">
                     <h3>Premios Especiales</h3>
-                    <p class="text-muted">Acierta quiénes serán los mejores del torneo (10 pts c/u).</p>
+                    <p class="text-muted">Acierta quiénes serán los mejores del torneo (10 pts c/u, evaluado al final).</p>
                     <div class="special-prizes-grid">
                         <div class="form-group">
                             <label>Goleador Máximo</label>
@@ -171,6 +158,8 @@
         </section>
     </main>
 
-    <script src="js/app.js"></script>
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <!-- Add Firebase products that you want to use -->
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
