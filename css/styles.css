@@ -536,24 +536,85 @@ input:disabled {
     border-bottom: 1px solid var(--color-border);
 }
 
+/* Hide number input spinners globally for a cleaner look on tiny inputs */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}
+
 /* Responsive utilities */
 @media (max-width: 600px) {
+    .match-grid {
+        grid-template-columns: 1fr;
+        gap: 0.3rem;
+    }
+    .match-card {
+        padding: 0.4rem;
+        border-radius: var(--border-radius-sm);
+    }
+    .match-header {
+        font-size: 0.75rem;
+        margin-bottom: 0.2rem;
+        padding-bottom: 0.2rem;
+    }
     .match-teams {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    .match-vs {
-        display: none;
-    }
-    .score-input {
-        width: 100% !important;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 0.2rem;
     }
     .team {
-        width: 100%;
+        width: 45%;
+        flex: 1;
+        display: flex;
+        background: transparent;
+        padding: 0;
+        gap: 0.2rem;
+    }
+    .team:first-child {
         flex-direction: row;
-        justify-content: space-between;
+        justify-content: flex-end;
+    }
+    .team:last-child {
+        flex-direction: row-reverse;
+        justify-content: flex-start;
     }
     .team-name {
+        font-size: 0.75rem;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .team:first-child .team-name {
+        text-align: right;
+    }
+    .team:last-child .team-name {
         text-align: left;
+    }
+    .match-vs {
+        display: block;
+        font-size: 0.7rem;
+        margin: 0;
+    }
+    .score-input {
+        width: 32px !important;
+        height: 28px !important;
+        padding: 0 !important;
+        font-size: 0.95rem !important;
+    }
+    .btn-save-single {
+        padding: 0.2rem;
+        font-size: 0.75rem;
+    }
+    .points-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        top: -6px;
+        right: -6px;
     }
 }

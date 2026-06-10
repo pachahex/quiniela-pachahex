@@ -181,9 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Save Predictions
-    document.getElementById('btn-save-predictions').addEventListener('click', saveCurrentPredictions);
-
     // Modal Close
     document.querySelector('.close-modal').addEventListener('click', () => {
         document.getElementById('other-user-predictions-modal').style.display = 'none';
@@ -391,10 +388,8 @@ onAuthStateChanged(auth, async (user) => {
             // Check Bloqueo
             if (currentUserData.estado === 'bloqueado') {
                 document.getElementById('user-blocked-alert').style.display = 'block';
-                document.getElementById('btn-save-predictions').disabled = true;
             } else {
                 document.getElementById('user-blocked-alert').style.display = 'none';
-                document.getElementById('btn-save-predictions').disabled = false;
             }
 
             // Display Group Name
@@ -506,10 +501,31 @@ async function renderPredictionsForm() {
     for (let j = 1; j <= 3; j++) {
         const jMatches = APP_MATCHES.filter(m => m.jornada === j);
         const jornadaDiv = document.createElement('div');
-        jornadaDiv.innerHTML = `<div class="jornada-header">
-            <h3>Jornada ${j}</h3>
-            <span class="text-muted" style="color: white">${j === 1 ? 'JORNADA 1: Cierre exacto en inicio de cada partido' : 'JORNADA 2-3: Cierre masivo 6hrs antes de J2'}</span>
-        </div>`;
+        jornadaDiv.className = `jornada-section jornada-${j}`;
+        
+        let headerHtml = `
+            <div style="flex: 1;">
+                <h3>Jornada ${j}</h3>
+                <span class="text-muted" style="color: white; font-size: 0.85rem;">
+                    ${j === 1 ? 'JORNADA 1: Cierre exacto en inicio de cada partido' : 'JORNADA 2-3: Cierre masivo 6hrs antes de J2'}
+                </span>
+            </div>
+        `;
+
+        if (j > 1 && currentUserData.estado !== 'bloqueado') {
+            headerHtml += `
+            <div style="text-align: right;">
+                <button class="btn btn-primary btn-save-jornada" data-jornada="${j}"><i class="fa-solid fa-floppy-disk"></i> Guardar J${j}</button>
+                <div id="status-j${j}" style="font-size: 0.8rem; font-weight: bold; margin-top: 5px;"></div>
+            </div>
+            `;
+        }
+
+        jornadaDiv.innerHTML = `
+            <div class="jornada-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                ${headerHtml}
+            </div>
+        `;
         
         const grid = document.createElement('div');
         grid.className = 'match-grid';
@@ -534,6 +550,15 @@ async function renderPredictionsForm() {
                 badgeHtml = `<div class="points-badge ${badgeClass}">${statusWord} (${pts} pts)</div>`;
             }
 
+            let saveBtnHtml = '';
+            if (!isLocked && currentUserData.estado !== 'bloqueado' && match.jornada === 1) {
+                saveBtnHtml = `
+                <div style="margin-top: 10px; width: 100%;">
+                    <button class="btn btn-secondary btn-sm btn-save-single" data-id="${match.id}" style="width: 100%;"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                    <div id="status-${match.id}" style="font-size: 0.8rem; text-align: center; margin-top: 5px; height: 1.2rem; font-weight: 600;"></div>
+                </div>`;
+            }
+
             card.innerHTML = `
                 ${badgeHtml}
                 <div class="match-header">
@@ -551,46 +576,90 @@ async function renderPredictionsForm() {
                         <input type="number" min="0" max="20" class="score-input pred-v ${isLocked?'locked':''}" data-id="${match.id}" value="${predV}" ${isLocked || currentUserData.estado==='bloqueado' ? 'disabled' : ''}>
                     </div>
                 </div>
+                ${saveBtnHtml}
             `;
             grid.appendChild(card);
         });
         jornadaDiv.appendChild(grid);
         container.appendChild(jornadaDiv);
     }
-}
 
-async function saveCurrentPredictions() {
-    if (currentUserData.estado === 'bloqueado') return alert("Cuenta bloqueada. No puedes guardar.");
-    const saveStatus = document.getElementById('save-status');
-    saveStatus.innerText = 'Guardando en la nube...';
-    saveStatus.style.color = 'var(--color-primary)';
-
-    const matchPreds = {};
-    const currentData = await loadUserPredictions(currentUser.uid);
-    const existingMatches = currentData.matches || {};
-
-    document.querySelectorAll('.score-input.pred-l').forEach(input => {
-        const id = input.getAttribute('data-id');
-        const vInput = document.querySelector(`.score-input.pred-v[data-id="${id}"]`);
-        
-        if (!input.disabled) {
-            matchPreds[id] = { l: input.value, v: vInput.value };
-        } else if (existingMatches[id]) {
-            matchPreds[id] = existingMatches[id];
-        }
+    // Lógica para guardar individualmente un partido
+    container.querySelectorAll('.btn-save-single').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const btnEl = e.currentTarget;
+            const id = btnEl.getAttribute('data-id');
+            const card = btnEl.closest('.match-card');
+            const lVal = card.querySelector('.pred-l').value;
+            const vVal = card.querySelector('.pred-v').value;
+            const statusDiv = document.getElementById(`status-${id}`);
+            
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+            
+            try {
+                const currentData = await loadUserPredictions(currentUser.uid);
+                const existingMatches = currentData.matches || {};
+                existingMatches[id] = { l: lVal, v: vVal };
+                await saveUserPredictions(currentUser.uid, existingMatches);
+                
+                statusDiv.innerText = '¡Guardado!';
+                statusDiv.style.color = 'var(--color-success)';
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerText = 'Error al guardar';
+                statusDiv.style.color = 'var(--color-error)';
+            }
+            
+            btnEl.disabled = false;
+            btnEl.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar';
+            setTimeout(() => { statusDiv.innerText = ''; }, 3000);
+        });
     });
 
-    try {
-        await saveUserPredictions(currentUser.uid, matchPreds);
-        saveStatus.innerText = '¡Guardado con éxito!';
-        saveStatus.style.color = 'var(--color-success)';
-    } catch (e) {
-        console.error(e);
-        saveStatus.innerText = 'Error al guardar.';
-        saveStatus.style.color = 'var(--color-error)';
-    }
+    // Lógica para guardar por jornada (J2, J3)
+    container.querySelectorAll('.btn-save-jornada').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const btnEl = e.currentTarget;
+            const j = btnEl.getAttribute('data-jornada');
+            const statusDiv = document.getElementById(`status-j${j}`);
+            
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>...';
+            
+            const matchPreds = {};
+            const jContainer = btnEl.closest('.jornada-section');
+            jContainer.querySelectorAll('.score-input.pred-l').forEach(input => {
+                const id = input.getAttribute('data-id');
+                const vInput = jContainer.querySelector(`.score-input.pred-v[data-id="${id}"]`);
+                if (!input.disabled) {
+                    matchPreds[id] = { l: input.value, v: vInput.value };
+                }
+            });
 
-    setTimeout(() => { saveStatus.innerText = ''; }, 3000);
+            try {
+                const currentData = await loadUserPredictions(currentUser.uid);
+                const existingMatches = currentData.matches || {};
+                
+                Object.keys(matchPreds).forEach(id => {
+                    existingMatches[id] = matchPreds[id];
+                });
+
+                await saveUserPredictions(currentUser.uid, existingMatches);
+                
+                statusDiv.innerText = '¡Guardado!';
+                statusDiv.style.color = 'var(--color-success)';
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerText = 'Error';
+                statusDiv.style.color = 'var(--color-error)';
+            }
+            
+            btnEl.disabled = false;
+            btnEl.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar J${j}`;
+            setTimeout(() => { statusDiv.innerText = ''; }, 3000);
+        });
+    });
 }
 
 async function renderRankingTable() {
