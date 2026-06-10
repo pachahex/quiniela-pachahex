@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiniela Pachahex - Mundial 2026</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <i class="fa-solid fa-trophy"></i>
+            <span>Quiniela Pachahex</span>
+        </div>
+        <div class="nav-controls" id="nav-controls" style="display: none;">
+            <span id="current-user-info" class="user-info"></span>
+            <button id="btn-logout" class="btn btn-secondary"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Login Section -->
+        <section id="login-section" class="view-section active">
+            <div class="login-card">
+                <h2>Iniciar Sesión</h2>
+                <p>Ingresa tus credenciales para continuar.</p>
+                <div class="form-group">
+                    <label for="login-username">Usuario</label>
+                    <input type="text" id="login-username" placeholder="Ej: diego_admin o jperez">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Contraseña</label>
+                    <input type="password" id="login-password" placeholder="••••••••">
+                </div>
+                <button id="btn-login" class="btn btn-primary">Entrar</button>
+                <div class="login-hint">
+                    <small>Admin: <strong>admin</strong> / <strong>admin123</strong></small><br>
+                    <small>Usuario Quotec: <strong>user1</strong> / <strong>pass123</strong></small><br>
+                    <small>Usuario Chicos: <strong>user2</strong> / <strong>pass123</strong></small>
+                </div>
+                <div id="login-error" class="error-msg"></div>
+            </div>
+        </section>
+
+        <!-- Admin Section -->
+        <section id="admin-section" class="view-section" style="display: none;">
+            <div class="admin-header">
+                <h2>Panel de Administrador</h2>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-target="admin-groups">Grupos y Usuarios</button>
+                <button class="tab-btn" data-target="admin-results">Resultados Oficiales</button>
+            </div>
+
+            <div class="tab-content active" id="admin-groups">
+                <div class="card">
+                    <h3>Crear Nuevo Grupo</h3>
+                    <div class="form-row">
+                        <input type="text" id="new-group-name" placeholder="Nombre del Grupo (ej: Los Primos)">
+                        <button id="btn-create-group" class="btn btn-primary">Crear Grupo</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Crear Usuario y Asignar a Grupo</h3>
+                    <div class="form-row">
+                        <input type="text" id="new-user-username" placeholder="Usuario">
+                        <input type="password" id="new-user-password" placeholder="Contraseña">
+                        <select id="new-user-group">
+                            <option value="">Selecciona un Grupo...</option>
+                        </select>
+                        <button id="btn-create-user" class="btn btn-primary">Crear Usuario</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Grupos Actuales</h3>
+                    <div id="admin-groups-list" class="groups-list"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="admin-results">
+                <div class="card">
+                    <h3>Actualizar Resultados del Mundial</h3>
+                    <p class="text-muted">Los usuarios verán reflejados estos resultados para el cálculo de sus puntos.</p>
+                    <div id="admin-matches-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- User Section -->
+        <section id="user-section" class="view-section" style="display: none;">
+            <div class="user-header">
+                <h2 id="group-title-display">Grupo: <span></span></h2>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-target="user-ranking">Tabla de Posiciones</button>
+                <button class="tab-btn" data-target="user-predictions">Mis Predicciones</button>
+                <button class="tab-btn" data-target="user-results">Resultados Oficiales</button>
+            </div>
+
+            <!-- Tab: Tabla de Posiciones -->
+            <div class="tab-content active" id="user-ranking">
+                <div class="card">
+                    <div class="ranking-header">
+                        <div class="rank-pos">#</div>
+                        <div class="rank-name">Usuario</div>
+                        <div class="rank-pts">Pts Fase A</div>
+                    </div>
+                    <div id="ranking-list" class="ranking-list">
+                        <!-- Generado por JS -->
+                    </div>
+                </div>
+
+                <!-- Modal de predicciones de otro usuario (solo si cerradas) -->
+                <div id="other-user-predictions-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <span class="close-modal">&times;</span>
+                        <h3 id="modal-user-name">Predicciones de </h3>
+                        <p class="text-muted"><small>Solo se muestran los partidos cuyo tiempo de predicción ya expiró.</small></p>
+                        <div id="modal-predictions-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Mis Predicciones -->
+            <div class="tab-content" id="user-predictions">
+                <div class="card">
+                    <h3>Premios Especiales</h3>
+                    <p class="text-muted">Acierta quiénes serán los mejores del torneo (10 pts c/u).</p>
+                    <div class="special-prizes-grid">
+                        <div class="form-group">
+                            <label>Goleador Máximo</label>
+                            <input type="text" id="pred-goleador" placeholder="Ej: Kylian Mbappé">
+                        </div>
+                        <div class="form-group">
+                            <label>Mejor Jugador</label>
+                            <input type="text" id="pred-jugador" placeholder="Ej: Lionel Messi">
+                        </div>
+                        <div class="form-group">
+                            <label>Mejor Portero</label>
+                            <input type="text" id="pred-portero" placeholder="Ej: Dibu Martínez">
+                        </div>
+                    </div>
+                    <button id="btn-save-specials" class="btn btn-primary">Guardar Especiales</button>
+                </div>
+
+                <div class="jornadas-container" id="user-jornadas-container">
+                    <!-- Generado por JS: J1, J2, J3 -->
+                </div>
+                
+                <div class="save-bar">
+                    <button id="btn-save-predictions" class="btn btn-primary btn-large"><i class="fa-solid fa-floppy-disk"></i> Guardar Mis Predicciones</button>
+                    <span id="save-status" class="save-status"></span>
+                </div>
+            </div>
+
+            <!-- Tab: Resultados Oficiales -->
+            <div class="tab-content" id="user-results">
+                <div class="card">
+                    <h3>Resultados del Torneo</h3>
+                    <div id="official-results-container">
+                        <!-- Generado por JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
