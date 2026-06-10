@@ -502,8 +502,13 @@ async function renderPredictionsForm() {
             let badgeHtml = '';
             if (match.goles_local_real != null && match.goles_visitante_real != null && isLocked) {
                 const pts = calculateMatchPoints(predL, predV, match.goles_local_real, match.goles_visitante_real);
-                let badgeClass = pts === 5 ? 'perfect' : (pts === 3 ? 'partial' : (pts === 1 ? 'minimal' : 'zero'));
-                badgeHtml = `<div class="points-badge ${badgeClass}">${pts}</div>`;
+                let badgeClass = '';
+                let statusWord = '';
+                if (pts === 5) { badgeClass = 'perfect'; statusWord = 'Exacto'; }
+                else if (pts === 3) { badgeClass = 'partial'; statusWord = 'Ganador'; }
+                else if (pts === 1) { badgeClass = 'minimal'; statusWord = 'Parcial'; }
+                else { badgeClass = 'zero'; statusWord = 'Fallido'; }
+                badgeHtml = `<div class="points-badge ${badgeClass}">${statusWord} (${pts} pts)</div>`;
             }
 
             card.innerHTML = `

@@ -383,14 +383,14 @@ input:disabled {
     background: var(--color-primary);
     color: white;
     font-weight: bold;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
+    border-radius: 15px;
+    padding: 0.25rem 0.75rem;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.85rem;
     box-shadow: var(--shadow-sm);
+    white-space: nowrap;
 }
 
 .points-badge.perfect { background: var(--color-success); }
