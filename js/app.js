@@ -183,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save Predictions
     document.getElementById('btn-save-predictions').addEventListener('click', saveCurrentPredictions);
-    document.getElementById('btn-save-specials').addEventListener('click', saveCurrentPredictions);
 
     // Modal Close
     document.querySelector('.close-modal').addEventListener('click', () => {
@@ -193,6 +192,34 @@ document.addEventListener('DOMContentLoaded', () => {
     // Admin Actions
     // document.getElementById('btn-seed-fixture').addEventListener('click', seedFixtureToDB);
     document.getElementById('btn-create-group').addEventListener('click', createGroup);
+
+    // Validación para que solo se puedan ingresar números enteros positivos
+    document.addEventListener('keydown', (e) => {
+        if (e.target.classList.contains('score-input')) {
+            const allowedKeys = ['Backspace', 'Tab', 'Delete', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            if (allowedKeys.includes(e.key) || (e.ctrlKey || e.metaKey)) {
+                return;
+            }
+            if (!/^[0-9]$/.test(e.key)) {
+                e.preventDefault();
+            }
+        }
+    });
+
+    document.addEventListener('input', (e) => {
+        if (e.target.classList.contains('score-input')) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        }
+    });
+
+    document.addEventListener('paste', (e) => {
+        if (e.target.classList.contains('score-input')) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (!/^\d+$/.test(pasteData)) {
+                e.preventDefault();
+            }
+        }
+    });
 });
 
 // --- CARGA DE PARTIDOS DESDE FIRESTORE ---
@@ -365,11 +392,9 @@ onAuthStateChanged(auth, async (user) => {
             if (currentUserData.estado === 'bloqueado') {
                 document.getElementById('user-blocked-alert').style.display = 'block';
                 document.getElementById('btn-save-predictions').disabled = true;
-                document.getElementById('btn-save-specials').disabled = true;
             } else {
                 document.getElementById('user-blocked-alert').style.display = 'none';
                 document.getElementById('btn-save-predictions').disabled = false;
-                document.getElementById('btn-save-specials').disabled = false;
             }
 
             // Display Group Name
@@ -404,17 +429,19 @@ async function fetchOfficialResults() {
             if (oficiales[m.id]) {
                 m.goles_local_real = oficiales[m.id].l;
                 m.goles_visitante_real = oficiales[m.id].v;
+                m.resultado_cerrado = oficiales[m.id].cerrado === true;
+            } else {
+                m.resultado_cerrado = false;
             }
             return m;
         });
     }
 }
 
-async function saveUserPredictions(userId, matchPredictions, specials) {
+async function saveUserPredictions(userId, matchPredictions) {
     if (currentUserData.estado === 'bloqueado') throw new Error("Usuario bloqueado");
     await setDoc(doc(db, "predicciones", userId), {
-        matches: matchPredictions,
-        specials: specials
+        matches: matchPredictions
     }, { merge: true });
 }
 
@@ -423,10 +450,11 @@ async function loadUserPredictions(userId) {
     if (docSnap.exists()) {
         return docSnap.data();
     }
-    return { matches: {}, specials: { goleador: '', jugador: '', portero: '' } };
+    return { matches: {} };
 }
 
 function isMatchLocked(match) {
+    if (match.resultado_cerrado) return true;
     const now = new Date();
     if (match.jornada === 1) {
         // Bloqueo en el minuto exacto de inicio
@@ -474,18 +502,13 @@ async function renderPredictionsForm() {
 
     const userPreds = await loadUserPredictions(currentUser.uid);
     const preds = userPreds.matches || {};
-    const specials = userPreds.specials || { goleador: '', jugador: '', portero: '' };
-
-    document.getElementById('pred-goleador').value = specials.goleador || '';
-    document.getElementById('pred-jugador').value = specials.jugador || '';
-    document.getElementById('pred-portero').value = specials.portero || '';
 
     for (let j = 1; j <= 3; j++) {
         const jMatches = APP_MATCHES.filter(m => m.jornada === j);
         const jornadaDiv = document.createElement('div');
         jornadaDiv.innerHTML = `<div class="jornada-header">
             <h3>Jornada ${j}</h3>
-            <span class="text-muted" style="color: white">${j === 1 ? 'Cierre exacto en inicio' : 'Cierre masivo 6hrs antes de J2'}</span>
+            <span class="text-muted" style="color: white">${j === 1 ? 'JORNADA 1: Cierre exacto en inicio de cada partido' : 'JORNADA 2-3: Cierre masivo 6hrs antes de J2'}</span>
         </div>`;
         
         const grid = document.createElement('div');
@@ -500,7 +523,7 @@ async function renderPredictionsForm() {
             card.className = `match-card ${isLocked ? 'locked' : ''}`;
             
             let badgeHtml = '';
-            if (match.goles_local_real != null && match.goles_visitante_real != null && isLocked) {
+            if (match.resultado_cerrado && match.goles_local_real != null && match.goles_visitante_real != null && isLocked) {
                 const pts = calculateMatchPoints(predL, predV, match.goles_local_real, match.goles_visitante_real);
                 let badgeClass = '';
                 let statusWord = '';
@@ -557,14 +580,8 @@ async function saveCurrentPredictions() {
         }
     });
 
-    const specials = {
-        goleador: document.getElementById('pred-goleador').value.trim(),
-        jugador: document.getElementById('pred-jugador').value.trim(),
-        portero: document.getElementById('pred-portero').value.trim()
-    };
-
     try {
-        await saveUserPredictions(currentUser.uid, matchPreds, specials);
+        await saveUserPredictions(currentUser.uid, matchPreds);
         saveStatus.innerText = '¡Guardado con éxito!';
         saveStatus.style.color = 'var(--color-success)';
     } catch (e) {
@@ -596,7 +613,7 @@ async function renderRankingTable() {
             const preds = await loadUserPredictions(u.uid);
             let total = 0;
             APP_MATCHES.forEach(m => {
-                if (m.goles_local_real != null && m.goles_visitante_real != null) {
+                if (m.resultado_cerrado && m.goles_local_real != null && m.goles_visitante_real != null) {
                     const p = preds.matches?.[m.id];
                     if (p) {
                         total += calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
@@ -655,8 +672,21 @@ async function showOtherUserPredictions(targetUid, targetUsername) {
         const pL = p ? p.l : '-';
         const pV = p ? p.v : '-';
         
+        let badgeHtml = '';
+        if (match.resultado_cerrado && match.goles_local_real != null && match.goles_visitante_real != null) {
+            const pts = calculateMatchPoints(pL, pV, match.goles_local_real, match.goles_visitante_real);
+            let badgeClass = '';
+            let statusWord = '';
+            if (pts === 5) { badgeClass = 'perfect'; statusWord = 'Exacto'; }
+            else if (pts === 3) { badgeClass = 'partial'; statusWord = 'Ganador'; }
+            else if (pts === 1) { badgeClass = 'minimal'; statusWord = 'Parcial'; }
+            else { badgeClass = 'zero'; statusWord = 'Fallido'; }
+            badgeHtml = `<div class="points-badge ${badgeClass}">${statusWord} (${pts} pts)</div>`;
+        }
+
         let html = `
             <div class="match-card">
+                ${badgeHtml}
                 <div class="match-header"><span>${match.equipo_local} vs ${match.equipo_visitante}</span></div>
                 <div style="text-align:center; font-weight:bold; font-size: 1.2rem;">
                     ${pL} - ${pV}
@@ -806,14 +836,28 @@ function renderMatchesList(containerId, isReadOnly, isFixtureEditor) {
                 inputsHtml = `
                     <div class="team">
                         <span class="team-name">${match.equipo_local}</span>
-                        <input type="number" min="0" max="20" class="score-input admin-res-l" value="${match.goles_local_real != null ? match.goles_local_real : ''}">
+                        <input type="number" min="0" max="20" class="score-input admin-res-l" value="${match.goles_local_real != null ? match.goles_local_real : ''}" ${match.resultado_cerrado ? 'disabled' : ''}>
                     </div>
                     <span class="match-vs">VS</span>
                     <div class="team">
                         <span class="team-name">${match.equipo_visitante}</span>
-                        <input type="number" min="0" max="20" class="score-input admin-res-v" value="${match.goles_visitante_real != null ? match.goles_visitante_real : ''}">
+                        <input type="number" min="0" max="20" class="score-input admin-res-v" value="${match.goles_visitante_real != null ? match.goles_visitante_real : ''}" ${match.resultado_cerrado ? 'disabled' : ''}>
                     </div>
                 `;
+            }
+
+            let adminButtons = '';
+            if (!isReadOnly) {
+                if (match.resultado_cerrado) {
+                    adminButtons = `<button class="btn btn-danger btn-sm btn-revert-admin-res" data-id="${match.id}" style="width:100%; margin-top:1rem;">Revertir Cierre</button>`;
+                } else {
+                    adminButtons = `
+                        <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                            <button class="btn btn-secondary btn-sm btn-save-admin-res" data-id="${match.id}" style="flex:1;">Guardar Gol</button>
+                            <button class="btn btn-success btn-sm btn-close-admin-res" data-id="${match.id}" style="flex:1;">Cerrar Resultado</button>
+                        </div>
+                    `;
+                }
             }
 
             innerHtml = `
@@ -822,7 +866,7 @@ function renderMatchesList(containerId, isReadOnly, isFixtureEditor) {
                     <span style="color: ${isLocked ? 'var(--color-primary)' : 'var(--color-secondary)'}">${isLocked ? 'Cerrado' : 'Abierto'}</span>
                 </div>
                 <div class="match-teams">${inputsHtml}</div>
-                ${!isReadOnly ? `<button class="btn btn-secondary btn-sm btn-save-admin-res" data-id="${match.id}" style="width:100%; margin-top:1rem;">Guardar Gol</button>` : ''}
+                ${adminButtons}
             `;
         }
 
@@ -881,7 +925,8 @@ function renderMatchesList(containerId, isReadOnly, isFixtureEditor) {
                     const resToSave = {};
                     resToSave[id] = {
                         l: APP_MATCHES[matchIndex].goles_local_real,
-                        v: APP_MATCHES[matchIndex].goles_visitante_real
+                        v: APP_MATCHES[matchIndex].goles_visitante_real,
+                        cerrado: APP_MATCHES[matchIndex].resultado_cerrado || false
                     };
                     
                     await setDoc(doc(db, "resultados", "oficiales"), resToSave, { merge: true });
@@ -889,6 +934,77 @@ function renderMatchesList(containerId, isReadOnly, isFixtureEditor) {
                     setTimeout(() => btn.innerText = 'Guardar Gol', 2000);
                 } catch (error) {
                     console.error("Error saving official results", error);
+                    btn.innerText = 'Error';
+                }
+            });
+        });
+
+        container.querySelectorAll('.btn-close-admin-res').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                btn.innerText = '...';
+                const id = e.target.getAttribute('data-id');
+                const card = e.target.closest('.match-card');
+                const lVal = card.querySelector('.admin-res-l').value;
+                const vVal = card.querySelector('.admin-res-v').value;
+                
+                if (lVal === '' || vVal === '') {
+                    alert('Debes ingresar los goles antes de cerrar el resultado.');
+                    btn.innerText = 'Cerrar Resultado';
+                    return;
+                }
+
+                if (!confirm('¿Estás seguro de cerrar este resultado? Esto actualizará la tabla de posiciones y no podrá ser modificado por los usuarios.')) {
+                    btn.innerText = 'Cerrar Resultado';
+                    return;
+                }
+
+                try {
+                    const matchIndex = APP_MATCHES.findIndex(m => m.id === id);
+                    APP_MATCHES[matchIndex].goles_local_real = parseInt(lVal);
+                    APP_MATCHES[matchIndex].goles_visitante_real = parseInt(vVal);
+                    APP_MATCHES[matchIndex].resultado_cerrado = true;
+                    
+                    const resToSave = {};
+                    resToSave[id] = {
+                        l: APP_MATCHES[matchIndex].goles_local_real,
+                        v: APP_MATCHES[matchIndex].goles_visitante_real,
+                        cerrado: true
+                    };
+                    
+                    await setDoc(doc(db, "resultados", "oficiales"), resToSave, { merge: true });
+                    renderMatchesList('admin-matches-container', false, false);
+                } catch (error) {
+                    console.error("Error closing result", error);
+                    btn.innerText = 'Error';
+                }
+            });
+        });
+
+        container.querySelectorAll('.btn-revert-admin-res').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                btn.innerText = '...';
+                const id = e.target.getAttribute('data-id');
+                
+                if (!confirm('¿Estás seguro de revertir este resultado? Se quitarán los puntos de la tabla de posiciones.')) {
+                    btn.innerText = 'Revertir Cierre';
+                    return;
+                }
+
+                try {
+                    const matchIndex = APP_MATCHES.findIndex(m => m.id === id);
+                    APP_MATCHES[matchIndex].resultado_cerrado = false;
+                    
+                    const resToSave = {};
+                    resToSave[id] = {
+                        l: APP_MATCHES[matchIndex].goles_local_real,
+                        v: APP_MATCHES[matchIndex].goles_visitante_real,
+                        cerrado: false
+                    };
+                    
+                    await setDoc(doc(db, "resultados", "oficiales"), resToSave, { merge: true });
+                    renderMatchesList('admin-matches-container', false, false);
+                } catch (error) {
+                    console.error("Error reverting result", error);
                     btn.innerText = 'Error';
                 }
             });

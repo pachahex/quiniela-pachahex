@@ -204,6 +204,24 @@ input:disabled {
     background-color: #707070;
 }
 
+.btn-success {
+    background-color: var(--color-success);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #27ae60;
+}
+
+.btn-danger {
+    background-color: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
 .btn-large {
     width: 100%;
     padding: 1rem;
@@ -490,12 +508,6 @@ input:disabled {
     color: var(--color-success);
 }
 
-.special-prizes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
 
 /* Rules Section */
 .rules-content h4 {

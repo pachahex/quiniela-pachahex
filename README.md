@@ -32,11 +32,6 @@ La base de datos utiliza dos colecciones principales:
        "matches": {
          "j1_m1": { "l": "2", "v": "1" },
          "j1_m2": { "l": "0", "v": "0" }
-       },
-       "specials": {
-         "goleador": "Mbappé",
-         "jugador": "Messi",
-         "portero": "Martínez"
        }
      }
      ```
