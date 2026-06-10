@@ -38,7 +38,7 @@ body {
 }
 
 /* Typography */
-h1, h2, h3 {
+h1, h2, h3, h4 {
     color: var(--color-primary);
     font-weight: 700;
     margin-bottom: 1rem;
@@ -113,6 +113,7 @@ h1, h2, h3 {
 input[type="text"],
 input[type="password"],
 input[type="number"],
+input[type="datetime-local"],
 select {
     width: 100%;
     padding: 0.75rem;
@@ -145,6 +146,30 @@ input:disabled {
 .form-row > * {
     flex: 1;
     min-width: 200px;
+}
+
+/* Password Eye */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper input {
+    padding-right: 2.5rem;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 15px;
+    cursor: pointer;
+    color: var(--color-secondary);
+    transition: var(--transition);
+    font-size: 1.1rem;
+}
+
+.toggle-password:hover {
+    color: var(--color-primary);
 }
 
 /* Buttons */
@@ -185,6 +210,11 @@ input:disabled {
     font-size: 1.1rem;
 }
 
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
 /* Login */
 .login-card {
     max-width: 400px;
@@ -196,20 +226,25 @@ input:disabled {
     text-align: center;
 }
 
-.login-hint {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: var(--color-secondary-light);
-    border-radius: var(--border-radius-sm);
-    text-align: left;
-    color: var(--color-secondary);
-}
-
 .error-msg {
     color: var(--color-error);
     margin-top: 1rem;
     font-size: 0.9rem;
     font-weight: 600;
+}
+
+/* Alerts */
+.alert {
+    padding: 1rem;
+    border-radius: var(--border-radius-sm);
+    margin-bottom: 1rem;
+    border-left: 4px solid;
+}
+
+.error-alert {
+    background-color: #fdeaea;
+    border-left-color: var(--color-error);
+    color: #c0392b;
 }
 
 /* Tabs */
@@ -460,6 +495,33 @@ input:disabled {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
     margin-bottom: 1rem;
+}
+
+/* Rules Section */
+.rules-content h4 {
+    margin-top: 1.5rem;
+    color: var(--color-primary);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+
+.rules-content ul {
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+    color: var(--color-text);
+}
+
+.rules-content li {
+    margin-bottom: 0.5rem;
+}
+
+/* User Admin List */
+.admin-user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
 }
 
 /* Responsive utilities */

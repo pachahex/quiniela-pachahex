@@ -33,11 +33,21 @@
                 <p id="auth-subtitle">Ingresa tus credenciales para continuar.</p>
                 <div class="form-group">
                     <label for="login-username">Nombre de Usuario</label>
-                    <input type="text" id="login-username" placeholder="Ej: jperez" autocomplete="username">
+                    <input type="text" id="login-username" placeholder="Ej: diego perez" autocomplete="username">
+                    <small id="username-hint" class="text-muted" style="display:none;">Solo letras y espacios permitidos.</small>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="group-select-container" style="display: none;">
+                    <label for="login-group">Selecciona tu Grupo</label>
+                    <select id="login-group">
+                        <option value="">Cargando grupos...</option>
+                    </select>
+                </div>
+                <div class="form-group password-group">
                     <label for="login-password">Contraseña</label>
-                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                        <i class="fa-solid fa-eye toggle-password" id="toggle-password-icon"></i>
+                    </div>
                 </div>
                 
                 <button id="btn-login" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">Entrar</button>
@@ -55,31 +65,61 @@
         <section id="admin-section" class="view-section" style="display: none;">
             <div class="admin-header" style="background-color: #333; color: white; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1rem;">
                 <h2><i class="fa-solid fa-shield-halved"></i> Panel de Administrador</h2>
+                <!-- <button id="btn-seed-fixture" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;"><i class="fa-solid fa-database"></i> Instalar Fixture (Solo 1 vez)</button> -->
             </div>
             
             <div class="tabs">
                 <button class="tab-btn active" data-target="admin-results">Resultados Oficiales</button>
-                <button class="tab-btn" data-target="admin-groups">Gestión de Grupos (En Desarrollo)</button>
+                <button class="tab-btn" data-target="admin-groups">Grupos</button>
+                <button class="tab-btn" data-target="admin-users">Usuarios</button>
+                <button class="tab-btn" data-target="admin-fixture">Editor Fixture</button>
             </div>
 
             <div class="tab-content active" id="admin-results">
                 <div class="card">
                     <h3>Actualizar Resultados del Mundial</h3>
-                    <p class="text-muted">Los usuarios verán reflejados estos resultados. Guarda para actualizar los puntos globales.</p>
+                    <p class="text-muted">Los usuarios verán reflejados estos resultados para calcular sus puntos.</p>
                     <div id="admin-matches-container"></div>
                 </div>
             </div>
             
             <div class="tab-content" id="admin-groups">
                 <div class="card">
-                    <h3>Grupos</h3>
-                    <p class="text-muted">Aquí podrás crear grupos y asignar usuarios en el futuro.</p>
+                    <h3>Crear Nuevo Grupo</h3>
+                    <div class="form-row">
+                        <input type="text" id="new-group-name" placeholder="Nombre del Grupo (ej: Quotec)">
+                        <button id="btn-create-group" class="btn btn-primary">Crear Grupo</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Grupos Existentes</h3>
+                    <div id="admin-groups-list" class="groups-list"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="admin-users">
+                <div class="card">
+                    <h3>Gestión de Usuarios</h3>
+                    <p class="text-muted">Bloquea o habilita usuarios (ej. si pagaron cuota).</p>
+                    <div id="admin-users-list"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="admin-fixture">
+                <div class="card">
+                    <h3>Editor de Fixture</h3>
+                    <p class="text-muted">Edita fechas, horas o equipos si hubo algún cambio oficial. El formato debe respetarse.</p>
+                    <div id="admin-fixture-container"></div>
                 </div>
             </div>
         </section>
 
         <!-- User Section -->
         <section id="user-section" class="view-section" style="display: none;">
+            <div id="user-blocked-alert" class="alert error-alert" style="display: none; margin-bottom: 1rem;">
+                <strong><i class="fa-solid fa-triangle-exclamation"></i> Cuenta Bloqueada:</strong> No has pagado la cuota o el administrador ha restringido tu cuenta. No podrás guardar predicciones.
+            </div>
+
             <div class="user-header">
                 <h2 id="group-title-display">Grupo: <span></span></h2>
             </div>
@@ -88,6 +128,7 @@
                 <button class="tab-btn active" data-target="user-ranking">Tabla de Posiciones</button>
                 <button class="tab-btn" data-target="user-predictions">Mis Predicciones</button>
                 <button class="tab-btn" data-target="user-results">Resultados Oficiales</button>
+                <button class="tab-btn" data-target="user-rules">Reglas del Juego</button>
             </div>
 
             <!-- Tab: Tabla de Posiciones -->
@@ -155,11 +196,46 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Tab: Reglas del Juego -->
+            <div class="tab-content" id="user-rules">
+                <div class="card">
+                    <h3>Reglas del Juego - Quiniela Pachahex</h3>
+                    <div class="rules-content">
+                        <h4>1. Sistema de Puntuación (Max 270 pts)</h4>
+                        <ul>
+                            <li><strong>Resultado Exacto (5 pts):</strong> Aciertas los goles exactos del partido (ej. dices 2-1 y salen 2-1).</li>
+                            <li><strong>Ganador / Empate (3 pts):</strong> Aciertas quién gana o si hay empate, pero no los goles exactos (ej. dices 1-0 y salen 3-1).</li>
+                            <li><strong>Goles de un equipo (1 pt):</strong> No aciertas quién gana, pero aciertas exactamente cuántos goles hizo uno de los equipos (ej. dices 1-1 y el real es 2-1, acertaste el "1" del visitante).</li>
+                            <li><strong>Fallo Total (0 pts):</strong> No aciertas el resultado de ninguno de los equipos ni el ganador.</li>
+                            <li><strong>Nota:</strong> Los puntos NO son acumulativos, se asigna únicamente el máximo puntaje alcanzado en cada partido.</li>
+                        </ul>
+
+                        <h4>2. Cierre de Predicciones</h4>
+                        <ul>
+                            <li><strong>Jornada 1:</strong> Cada partido se bloquea individualmente en el <strong>minuto exacto en que comienza</strong>.</li>
+                            <li><strong>Jornadas 2 y 3:</strong> Todos los partidos (48 en total) se bloquean <strong>6 horas antes</strong> del inicio del <strong>primer partido de la Jornada 2</strong>. (Cierre masivo el 18 de Jun a las 06:00 AM Hora Bolivia).</li>
+                        </ul>
+
+                        <h4>3. Privacidad y Bloqueos</h4>
+                        <ul>
+                            <li>No puedes ver las predicciones de otros miembros de tu grupo <strong>hasta que el tiempo del partido haya expirado</strong>.</li>
+                            <li>Si tu cuenta está bloqueada (por falta de pago), no podrás guardar ni actualizar predicciones.</li>
+                        </ul>
+
+                        <h4>4. Premios Especiales (Fase B)</h4>
+                        <ul>
+                            <li>Goleador máximo: 10 pts.</li>
+                            <li>Mejor Jugador: 10 pts.</li>
+                            <li>Mejor Portero: 10 pts.</li>
+                            <li><em>Se evaluarán al finalizar el campeonato.</em></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
 
-    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
-    <!-- Add Firebase products that you want to use -->
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
