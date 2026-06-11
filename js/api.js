@@ -107,7 +107,7 @@ export async function loadTournamentData(localMatches) {
     }
 
     const matches = localMatches.map(lm => {
-        const m = { ...lm, goles_local_real: null, goles_visitante_real: null, grupo: null, estadio: null, ciudad: null, pais_sede: null };
+        const m = { ...lm, grupo: null, estadio: null, ciudad: null, pais_sede: null };
         if (!byPair) return m;
         const api = byPair.get(pairKey(lm.equipo_local, lm.equipo_visitante));
         if (!api) return m;
