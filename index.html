@@ -76,12 +76,13 @@
         <section id="admin-section" class="view-section" style="display: none;">
             <div class="admin-header">
                 <h2><i class="fa-solid fa-shield-halved"></i> Panel de Administrador</h2>
-                <p class="admin-note">Fechas, sedes y resultados se sincronizan automáticamente desde la API pública (openfootball). Aquí solo se gestionan usuarios y grupos.</p>
+                <p class="admin-note">Fechas y sedes se sincronizan desde la API pública. Puedes ingresar resultados manualmente aquí si la API se retrasa.</p>
             </div>
 
             <div class="tabs tabs-top">
                 <button class="tab-btn active" data-target="admin-users"><i class="fa-solid fa-user-gear"></i><span>Usuarios</span></button>
                 <button class="tab-btn" data-target="admin-groups"><i class="fa-solid fa-users"></i><span>Grupos</span></button>
+                <button class="tab-btn" data-target="admin-results"><i class="fa-solid fa-pen-to-square"></i><span>Resultados</span></button>
             </div>
 
             <div class="tab-content active" id="admin-users">
@@ -103,6 +104,14 @@
                 <div class="card">
                     <h3>Grupos Existentes</h3>
                     <div id="admin-groups-list" class="groups-list"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="admin-results">
+                <div class="card">
+                    <h3>Resultados Manuales</h3>
+                    <p class="text-muted">Ingresa los resultados manualmente aquí. Si la API oficial ya tiene un resultado, sobrescribirá temporalmente tus cambios locales, manteniendo el sistema robusto.</p>
+                    <div id="admin-results-list" class="match-list"></div>
                 </div>
             </div>
         </section>

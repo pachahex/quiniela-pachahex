@@ -891,10 +891,84 @@ function renderGroupBets() {
     container.innerHTML = `<div class="match-list">${renderMatchList(matches, groupBetsCard)}</div>`;
 }
 
-// --- ADMIN (solo usuarios y grupos) ---
+// --- ADMIN (solo usuarios, grupos y resultados) ---
 async function renderAdminViews() {
     renderGroupsListAdmin();
     renderUsersListAdmin();
+    renderAdminResultsList();
+}
+
+function adminResultCard(match) {
+    const lVal = match.goles_local_real !== null ? match.goles_local_real : '';
+    const vVal = match.goles_visitante_real !== null ? match.goles_visitante_real : '';
+    return `
+        <div class="match-card">
+            <div class="match-header">
+                <span class="match-meta"><span class="jornada-chip">J${match.jornada}</span> ${formatTime(match)}</span>
+            </div>
+            <div class="match-teams">
+                <div class="team">
+                    <span class="team-name">${match.equipo_local}</span>
+                    <input type="number" min="0" max="20" class="score-input admin-pred-l" value="${lVal}" data-id="${match.id}">
+                </div>
+                <span class="match-vs">VS</span>
+                <div class="team">
+                    <span class="team-name">${match.equipo_visitante}</span>
+                    <input type="number" min="0" max="20" class="score-input admin-pred-v" value="${vVal}" data-id="${match.id}">
+                </div>
+            </div>
+            <div class="card-actions" style="margin-top: 1rem; text-align: center;">
+                <button class="btn btn-primary btn-sm btn-save-admin-result" data-id="${match.id}">Guardar Manual</button>
+                <span class="save-status" id="admin-status-${match.id}" style="margin-left: 10px;"></span>
+            </div>
+        </div>
+    `;
+}
+
+function renderAdminResultsList() {
+    const container = document.getElementById('admin-results-list');
+    container.innerHTML = renderMatchList(APP_MATCHES, adminResultCard);
+
+    container.querySelectorAll('.btn-save-admin-result').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const btnEl = e.currentTarget;
+            const id = btnEl.getAttribute('data-id');
+            const card = btnEl.closest('.match-card');
+            const lVal = card.querySelector('.admin-pred-l').value;
+            const vVal = card.querySelector('.admin-pred-v').value;
+            const statusDiv = document.getElementById(`admin-status-${id}`);
+
+            statusDiv.innerText = 'Guardando...';
+            statusDiv.style.color = 'var(--color-primary)';
+            btnEl.disabled = true;
+
+            try {
+                const idx = BASE_MATCHES.findIndex(m => m.id === id);
+                if (idx !== -1) {
+                    BASE_MATCHES[idx].goles_local_real = lVal === '' ? null : parseInt(lVal);
+                    BASE_MATCHES[idx].goles_visitante_real = vVal === '' ? null : parseInt(vVal);
+                    await setDoc(doc(db, "sistema", "partidos"), { lista: BASE_MATCHES }, { merge: true });
+                    
+                    // Actualizar APP_MATCHES en memoria de inmediato para recalcular la UI
+                    const appIdx = APP_MATCHES.findIndex(m => m.id === id);
+                    if (appIdx !== -1) {
+                        APP_MATCHES[appIdx].goles_local_real = BASE_MATCHES[idx].goles_local_real;
+                        APP_MATCHES[appIdx].goles_visitante_real = BASE_MATCHES[idx].goles_visitante_real;
+                    }
+                    renderUserViews(); // Recalcula los puntos inmediatamente para todos
+                    
+                    statusDiv.innerText = 'Guardado exitosamente';
+                    statusDiv.style.color = 'var(--color-success)';
+                }
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerText = 'Error';
+                statusDiv.style.color = 'var(--color-error)';
+            }
+            btnEl.disabled = false;
+            setTimeout(() => { statusDiv.innerText = ''; }, 3000);
+        });
+    });
 }
 
 async function createGroup() {
