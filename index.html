@@ -2,35 +2,46 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#07150f">
     <title>Quiniela Pachahex - Mundial 2026</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div class="stadium-glow" aria-hidden="true"></div>
+
     <nav class="navbar" id="navbar">
         <div class="nav-brand">
             <i class="fa-solid fa-trophy"></i>
-            <span>Quiniela Pachahex</span>
+            <span class="brand-text">PACHAHEX<em>26</em></span>
         </div>
         <div class="nav-controls" id="nav-controls" style="display: none;">
             <span id="current-user-info" class="user-info"></span>
-            <button id="btn-logout" class="btn btn-secondary"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
+            <button id="btn-logout" class="btn btn-ghost btn-sm" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button>
         </div>
     </nav>
 
     <main class="container">
         <!-- Loader inicial -->
-        <div id="app-loader" style="text-align: center; margin-top: 50px;">
-            <h2><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando Quiniela...</h2>
+        <div id="app-loader" class="app-loader">
+            <i class="fa-solid fa-futbol fa-spin"></i>
+            <p>Cargando Quiniela...</p>
         </div>
 
         <!-- Login / Register Section -->
         <section id="login-section" class="view-section" style="display: none;">
+            <div class="login-hero">
+                <div class="login-hero-flags">🇲🇽 🇺🇸 🇨🇦</div>
+                <h1 class="display-title">MUNDIAL<span>2026</span></h1>
+                <p class="login-hero-sub">La quiniela de los cuates · 72 partidos · Fase de grupos</p>
+            </div>
             <div class="login-card">
                 <h2 id="auth-title">Iniciar Sesión</h2>
-                <p id="auth-subtitle">Ingresa tus credenciales para continuar.</p>
+                <p id="auth-subtitle" class="text-muted">Ingresa tus credenciales para continuar.</p>
                 <div class="form-group">
                     <label for="login-username">Nombre de Usuario</label>
                     <input type="text" id="login-username" placeholder="Ej: diego perez" autocomplete="username">
@@ -49,55 +60,31 @@
                         <i class="fa-solid fa-eye toggle-password" id="toggle-password-icon"></i>
                     </div>
                 </div>
-                
-                <button id="btn-login" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">Entrar</button>
-                <button id="btn-register" class="btn btn-secondary" style="width: 100%; display: none; margin-bottom: 10px;">Registrarse</button>
-                
+
+                <button id="btn-login" class="btn btn-gold btn-block">Entrar</button>
+                <button id="btn-register" class="btn btn-gold btn-block" style="display: none;">Registrarse</button>
+
                 <p style="margin-top: 15px;">
-                    <a href="#" id="toggle-auth-mode" style="color: var(--color-primary); text-decoration: none; font-weight: 600;">¿No tienes cuenta? Regístrate aquí</a>
+                    <a href="#" id="toggle-auth-mode" class="auth-toggle-link">¿No tienes cuenta? Regístrate aquí</a>
                 </p>
-                
+
                 <div id="login-error" class="error-msg"></div>
             </div>
         </section>
 
-        <!-- Admin Section -->
+        <!-- Admin Section: solo gestión de usuarios y grupos -->
         <section id="admin-section" class="view-section" style="display: none;">
-            <div class="admin-header" style="background-color: #333; color: white; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1rem;">
+            <div class="admin-header">
                 <h2><i class="fa-solid fa-shield-halved"></i> Panel de Administrador</h2>
-                <!-- <button id="btn-seed-fixture" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;"><i class="fa-solid fa-database"></i> Instalar Fixture (Solo 1 vez)</button> -->
-            </div>
-            
-            <div class="tabs">
-                <button class="tab-btn active" data-target="admin-results">Resultados Oficiales</button>
-                <button class="tab-btn" data-target="admin-groups">Grupos</button>
-                <button class="tab-btn" data-target="admin-users">Usuarios</button>
-                <button class="tab-btn" data-target="admin-fixture">Editor Fixture</button>
+                <p class="admin-note">Fechas, sedes y resultados se sincronizan automáticamente desde la API pública (openfootball). Aquí solo se gestionan usuarios y grupos.</p>
             </div>
 
-            <div class="tab-content active" id="admin-results">
-                <div class="card">
-                    <h3>Actualizar Resultados del Mundial</h3>
-                    <p class="text-muted">Los usuarios verán reflejados estos resultados para calcular sus puntos.</p>
-                    <div id="admin-matches-container"></div>
-                </div>
-            </div>
-            
-            <div class="tab-content" id="admin-groups">
-                <div class="card">
-                    <h3>Crear Nuevo Grupo</h3>
-                    <div class="form-row">
-                        <input type="text" id="new-group-name" placeholder="Nombre del Grupo (ej: Quotec)">
-                        <button id="btn-create-group" class="btn btn-primary">Crear Grupo</button>
-                    </div>
-                </div>
-                <div class="card">
-                    <h3>Grupos Existentes</h3>
-                    <div id="admin-groups-list" class="groups-list"></div>
-                </div>
+            <div class="tabs tabs-top">
+                <button class="tab-btn active" data-target="admin-users"><i class="fa-solid fa-user-gear"></i><span>Usuarios</span></button>
+                <button class="tab-btn" data-target="admin-groups"><i class="fa-solid fa-users"></i><span>Grupos</span></button>
             </div>
 
-            <div class="tab-content" id="admin-users">
+            <div class="tab-content active" id="admin-users">
                 <div class="card">
                     <h3>Gestión de Usuarios</h3>
                     <p class="text-muted">Bloquea o habilita usuarios (ej. si pagaron cuota).</p>
@@ -105,30 +92,44 @@
                 </div>
             </div>
 
-            <div class="tab-content" id="admin-fixture">
+            <div class="tab-content" id="admin-groups">
                 <div class="card">
-                    <h3>Editor de Fixture</h3>
-                    <p class="text-muted">Edita fechas, horas o equipos si hubo algún cambio oficial. El formato debe respetarse.</p>
-                    <div id="admin-fixture-container"></div>
+                    <h3>Crear Nuevo Grupo</h3>
+                    <div class="form-row">
+                        <input type="text" id="new-group-name" placeholder="Nombre del Grupo (ej: Quotec)">
+                        <button id="btn-create-group" class="btn btn-gold">Crear Grupo</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Grupos Existentes</h3>
+                    <div id="admin-groups-list" class="groups-list"></div>
                 </div>
             </div>
         </section>
 
         <!-- User Section -->
         <section id="user-section" class="view-section" style="display: none;">
-            <div id="user-blocked-alert" class="alert error-alert" style="display: none; margin-bottom: 1rem;">
+            <div id="user-blocked-alert" class="alert error-alert" style="display: none;">
                 <strong><i class="fa-solid fa-triangle-exclamation"></i> Cuenta Bloqueada:</strong> No has pagado la cuota o el administrador ha restringido tu cuenta. No podrás guardar predicciones.
             </div>
 
-            <div class="user-header">
-                <h2 id="group-title-display">Grupo: <span></span></h2>
-            </div>
+            <header class="wc-hero">
+                <div class="wc-hero-top">
+                    <span class="wc-hero-flags">🇲🇽 🇺🇸 🇨🇦</span>
+                    <span class="wc-hero-tag">Fase de grupos</span>
+                </div>
+                <h1 class="display-title">MUNDIAL<span>2026</span></h1>
+                <div class="wc-hero-group" id="group-title-display"><i class="fa-solid fa-users"></i> <span></span></div>
+                <div id="next-match-banner" class="next-match-banner" style="display:none;"></div>
+                <div id="data-freshness" class="data-freshness"></div>
+            </header>
 
-            <div class="tabs">
-                <button class="tab-btn active" data-target="user-ranking">Tabla de Posiciones</button>
-                <button class="tab-btn" data-target="user-predictions">Mis Predicciones</button>
-                <button class="tab-btn" data-target="user-results">Resultados Oficiales</button>
-                <button class="tab-btn" data-target="user-rules">Reglas del Juego</button>
+            <div class="tabs tabs-bottom-nav">
+                <button class="tab-btn active" data-target="user-ranking"><i class="fa-solid fa-ranking-star"></i><span>Posiciones</span></button>
+                <button class="tab-btn" data-target="user-predictions"><i class="fa-solid fa-pen-to-square"></i><span>Predicciones</span></button>
+                <button class="tab-btn" data-target="user-results"><i class="fa-solid fa-futbol"></i><span>Partidos</span></button>
+                <button class="tab-btn" data-target="user-group"><i class="fa-solid fa-eye"></i><span>Grupo</span></button>
+                <button class="tab-btn" data-target="user-rules"><i class="fa-solid fa-book"></i><span>Reglas</span></button>
             </div>
 
             <!-- Tab: Tabla de Posiciones -->
@@ -136,12 +137,11 @@
                 <div class="card">
                     <div class="ranking-header">
                         <div class="rank-pos">#</div>
-                        <div class="rank-name">Usuario</div>
-                        <div class="rank-pts">Pts Fase A</div>
+                        <div class="rank-name" style="flex:1;">Usuario</div>
+                        <div class="rank-stat" title="Resultados exactos"><i class="fa-solid fa-bullseye"></i></div>
+                        <div class="rank-pts">Pts</div>
                     </div>
-                    <div id="ranking-list" class="ranking-list">
-                        <!-- Generado por JS -->
-                    </div>
+                    <div id="ranking-list" class="ranking-list"></div>
                 </div>
 
                 <!-- Modal de predicciones de otro usuario -->
@@ -149,7 +149,7 @@
                     <div class="modal-content">
                         <span class="close-modal">&times;</span>
                         <h3 id="modal-user-name">Predicciones de </h3>
-                        <p class="text-muted"><small>Solo se muestran los partidos cuyo tiempo de predicción ya expiró.</small></p>
+                        <p class="text-muted"><small>Solo se muestran los partidos cuyas apuestas ya cerraron.</small></p>
                         <div id="modal-predictions-list"></div>
                     </div>
                 </div>
@@ -157,20 +157,24 @@
 
             <!-- Tab: Mis Predicciones -->
             <div class="tab-content" id="user-predictions">
-
-                <div class="jornadas-container" id="user-jornadas-container">
-                    <!-- Generado por JS: J1, J2, J3 -->
-                </div>
+                <div id="predictions-filters"></div>
+                <div class="jornadas-container" id="user-jornadas-container"></div>
             </div>
 
-            <!-- Tab: Resultados Oficiales -->
+            <!-- Tab: Partidos / Resultados Oficiales -->
             <div class="tab-content" id="user-results">
-                <div class="card">
-                    <h3>Resultados del Torneo</h3>
-                    <div id="official-results-container">
-                        <!-- Generado por JS -->
-                    </div>
+                <div id="results-filters"></div>
+                <div id="official-results-container"></div>
+            </div>
+
+            <!-- Tab: Apuestas del Grupo (Transparencia) -->
+            <div class="tab-content" id="user-group">
+                <div class="transparency-intro">
+                    <i class="fa-solid fa-eye"></i>
+                    <p>Cuando las apuestas de un partido cierran (1 hora antes del inicio), las predicciones de todo el grupo se hacen públicas aquí.</p>
                 </div>
+                <div id="group-filters"></div>
+                <div id="group-bets-container"></div>
             </div>
 
             <!-- Tab: Reglas del Juego -->
@@ -187,19 +191,27 @@
                             <li><strong>Nota:</strong> Los puntos NO son acumulativos, se asigna únicamente el máximo puntaje alcanzado en cada partido.</li>
                         </ul>
 
-                        <h4>2. Cierre de Predicciones</h4>
+                        <h4>2. Cierre de Apuestas (automático)</h4>
                         <ul>
-                            <li><strong>Jornada 1:</strong> Cada partido se bloquea individualmente en el <strong>minuto exacto en que comienza</strong>.</li>
-                            <li><strong>Jornadas 2 y 3:</strong> Todos los partidos (48 en total de estas jornadas) se bloquean <strong>6 horas antes</strong> del inicio del <strong>primer partido de la Jornada 2</strong>. (Cierre masivo el 18 de Jun a las 06:00 AM Hora Bolivia).</li>
+                            <li>Las apuestas de cada partido se cierran automáticamente <strong>1 hora antes de la hora oficial de inicio</strong>.</li>
+                            <li>Cada tarjeta muestra una cuenta regresiva con el tiempo restante para apostar.</li>
+                            <li>Una vez cerrado, ya no podrás crear ni modificar tu predicción para ese partido.</li>
                         </ul>
 
-                        <h4>3. Privacidad y Bloqueos</h4>
+                        <h4>3. Resultados (automáticos)</h4>
                         <ul>
-                            <li>No puedes ver las predicciones de otros miembros de tu grupo <strong>hasta que el tiempo del partido haya expirado</strong>.</li>
+                            <li>Los marcadores oficiales se obtienen automáticamente de la API pública del Mundial; nadie los ingresa a mano.</li>
+                            <li>La tabla de posiciones se recalcula sola en cuanto la API publica un resultado final.</li>
+                        </ul>
+
+                        <h4>4. Transparencia</h4>
+                        <ul>
+                            <li>Mientras las apuestas estén abiertas, las predicciones son <strong>secretas</strong>.</li>
+                            <li>Al cerrar las apuestas de un partido, las predicciones de <strong>todos los miembros del grupo</strong> se publican en la pestaña <strong>Grupo</strong>.</li>
                             <li>Si tu cuenta está bloqueada (por falta de pago), no podrás guardar ni actualizar predicciones.</li>
                         </ul>
 
-                        <h4>4. Fase B (Pendiente y en Desarrollo)</h4>
+                        <h4>5. Fase B (Pendiente y en Desarrollo)</h4>
                         <ul>
                             <li>La Fase B (eliminatorias de la quiniela) está actualmente <strong>pendiente y en desarrollo</strong>. Se habilitará oportunamente.</li>
                         </ul>
