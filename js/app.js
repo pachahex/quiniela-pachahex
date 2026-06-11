@@ -16,7 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { flagImg } from './teams.js';
-import { loadTournamentData } from './api.js';
+import { loadTournamentData } from './api.js?v=1.1';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
 const firebaseConfig = {
