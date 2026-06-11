@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// Reglas de seguridad para Firestore.
+// IMPORTANTE: copiar en Firebase Console > Firestore Database > Rules y publicar.
+// Sin esto, el cierre de apuestas solo existe en el frontend y cualquier usuario
+// con la consola del navegador podría editar predicciones cerradas.
+//
+// NOTA: los resultados y fechas ya NO viven en Firestore (vienen de la API pública
+// openfootball). La colección `resultados` quedó en desuso y puede eliminarse.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    function isActive() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.estado == 'activo';
+    }
+
+    // Usuarios: cada uno puede crear/leer su perfil; solo el admin modifica estado/rol de otros.
+    match /usuarios/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.rol == 'user'
+        && request.resource.data.estado == 'activo';
+      allow update, delete: if isAdmin();
+    }
+
+    // Grupos: lectura pública (se necesita en el registro), escritura solo admin.
+    match /grupos/{groupId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Fixture base (ids de partidos + jornadas + equipos): lectura autenticada.
+    // Solo el admin podría corregirlo (desde la consola de Firebase, ya no hay UI).
+    match /sistema/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Predicciones: cada usuario activo escribe solo las suyas.
+    // La lectura es abierta a autenticados (necesaria para ranking y transparencia);
+    // la privacidad antes del cierre se maneja en la UI.
+    match /predicciones/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isActive() && request.auth.uid == uid;
+    }
+  }
+}
