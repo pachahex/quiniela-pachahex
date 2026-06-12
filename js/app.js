@@ -896,6 +896,7 @@ async function renderAdminViews() {
     renderGroupsListAdmin();
     renderUsersListAdmin();
     renderAdminResultsList();
+    renderAdminRankings();
 }
 
 function adminResultCard(match) {
@@ -1042,5 +1043,111 @@ async function renderUsersListAdmin() {
     } catch (e) {
         console.error(e);
         list.innerHTML = 'Error cargando usuarios';
+    }
+}
+
+async function renderAdminRankings() {
+    const container = document.getElementById('admin-rankings-container');
+    if (!container) return;
+    container.innerHTML = '<p>Cargando tablas de posiciones...</p>';
+
+    try {
+        const [groupsSnap, usersSnap, predsSnap] = await Promise.all([
+            getDocs(collection(db, "grupos")),
+            getDocs(collection(db, "usuarios")),
+            getDocs(collection(db, "predicciones"))
+        ]);
+
+        const groups = {};
+        groupsSnap.forEach(g => { groups[g.id] = { nombre: g.data().nombre, users: [] }; });
+
+        const usersData = {};
+        usersSnap.forEach(u => {
+            const data = u.data();
+            if (data.rol !== 'admin' && data.grupo_id && groups[data.grupo_id]) {
+                usersData[u.id] = { uid: u.id, ...data };
+                groups[data.grupo_id].users.push(usersData[u.id]);
+            }
+        });
+
+        const predsData = {};
+        predsSnap.forEach(p => {
+            predsData[p.id] = p.data();
+        });
+
+        function computeStatsForAdmin(uid) {
+            const preds = (predsData[uid] && predsData[uid].matches) || {};
+            let total = 0, exactos = 0;
+            APP_MATCHES.forEach(m => {
+                if (hasResult(m)) {
+                    const p = preds[m.id];
+                    if (p) {
+                        const pts = calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
+                        total += pts;
+                        if (pts === 5) exactos++;
+                    }
+                }
+            });
+            return { total, exactos };
+        }
+
+        container.innerHTML = '';
+
+        for (const [groupId, group] of Object.entries(groups)) {
+            if (group.users.length === 0) continue;
+
+            const ranked = group.users.map(u => ({ ...u, ...computeStatsForAdmin(u.uid) }))
+                .sort((a, b) => b.total - a.total || b.exactos - a.exactos || a.nombre_usuario.localeCompare(b.nombre_usuario));
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.marginBottom = '20px';
+
+            const header = document.createElement('h3');
+            header.innerHTML = `<i class="fa-solid fa-users"></i> Grupo: ${group.nombre}`;
+            card.appendChild(header);
+
+            const rankingHeader = document.createElement('div');
+            rankingHeader.className = 'ranking-header';
+            rankingHeader.innerHTML = `
+                <div class="rank-pos">#</div>
+                <div class="rank-name" style="flex:1;">Usuario</div>
+                <div class="rank-stat" title="Resultados exactos"><i class="fa-solid fa-bullseye"></i></div>
+                <div class="rank-pts">Pts</div>
+            `;
+            card.appendChild(rankingHeader);
+
+            const list = document.createElement('div');
+            list.className = 'ranking-list';
+
+            const medals = ['🥇', '🥈', '🥉'];
+            ranked.forEach((u, index) => {
+                const item = document.createElement('div');
+                item.className = `ranking-item ${index < 3 ? 'podium' : ''}`;
+                const initials = u.nombre_usuario.split(/\\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                item.innerHTML = `
+                    <div class="rank-pos">${medals[index] || index + 1}</div>
+                    <div class="rank-avatar">${initials}</div>
+                    <div class="rank-name">
+                        ${u.nombre_usuario}
+                        ${u.estado === 'bloqueado' ? '<span class="blocked-tag">Bloqueado</span>' : ''}
+                    </div>
+                    <div class="rank-stat">${u.exactos}</div>
+                    <div class="rank-pts">${u.total}</div>
+                `;
+                list.appendChild(item);
+            });
+
+            card.appendChild(list);
+            container.appendChild(card);
+        }
+
+        if (container.innerHTML === '') {
+            container.innerHTML = '<div class="empty-state"><p>No hay grupos con usuarios.</p></div>';
+        }
+
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div class="error-msg">Error cargando tablas de posiciones.</div>';
     }
 }
