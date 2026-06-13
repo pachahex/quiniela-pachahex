@@ -39,36 +39,41 @@
                 <h1 class="display-title">MUNDIAL<span>2026</span></h1>
                 <p class="login-hero-sub">La quiniela de los cuates · 72 partidos · Fase de grupos</p>
             </div>
-            <div class="login-card">
-                <h2 id="auth-title">Iniciar Sesión</h2>
-                <p id="auth-subtitle" class="text-muted">Ingresa tus credenciales para continuar.</p>
-                <div class="form-group">
-                    <label for="login-username">Nombre de Usuario</label>
-                    <input type="text" id="login-username" placeholder="Ej: diego perez" autocomplete="username">
-                    <small id="username-hint" class="text-muted" style="display:none;">Solo letras y espacios permitidos.</small>
+            <div class="login-container">
+                <div class="login-art-panel">
+                    <img src="img/banners/formularios.webp" alt="Quiniela Mundial 2026" class="login-art-image">
                 </div>
-                <div class="form-group" id="group-select-container" style="display: none;">
-                    <label for="login-group">Selecciona tu Grupo</label>
-                    <select id="login-group">
-                        <option value="">Cargando grupos...</option>
-                    </select>
-                </div>
-                <div class="form-group password-group">
-                    <label for="login-password">Contraseña</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-                        <i class="fa-solid fa-eye toggle-password" id="toggle-password-icon"></i>
+                <div class="login-card">
+                    <h2 id="auth-title">Iniciar Sesión</h2>
+                    <p id="auth-subtitle" class="text-muted">Ingresa tus credenciales para continuar.</p>
+                    <div class="form-group">
+                        <label for="login-username">Nombre de Usuario</label>
+                        <input type="text" id="login-username" placeholder="Ej: diego perez" autocomplete="username">
+                        <small id="username-hint" class="text-muted" style="display:none;">Solo letras y espacios permitidos.</small>
                     </div>
+                    <div class="form-group" id="group-select-container" style="display: none;">
+                        <label for="login-group">Selecciona tu Grupo</label>
+                        <select id="login-group">
+                            <option value="">Cargando grupos...</option>
+                        </select>
+                    </div>
+                    <div class="form-group password-group">
+                        <label for="login-password">Contraseña</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                            <i class="fa-solid fa-eye toggle-password" id="toggle-password-icon"></i>
+                        </div>
+                    </div>
+
+                    <button id="btn-login" class="btn btn-gold btn-block">Entrar</button>
+                    <button id="btn-register" class="btn btn-gold btn-block" style="display: none;">Registrarse</button>
+
+                    <p style="margin-top: 15px;">
+                        <a href="#" id="toggle-auth-mode" class="auth-toggle-link">¿No tienes cuenta? Regístrate aquí</a>
+                    </p>
+
+                    <div id="login-error" class="error-msg"></div>
                 </div>
-
-                <button id="btn-login" class="btn btn-gold btn-block">Entrar</button>
-                <button id="btn-register" class="btn btn-gold btn-block" style="display: none;">Registrarse</button>
-
-                <p style="margin-top: 15px;">
-                    <a href="#" id="toggle-auth-mode" class="auth-toggle-link">¿No tienes cuenta? Regístrate aquí</a>
-                </p>
-
-                <div id="login-error" class="error-msg"></div>
             </div>
         </section>
 
@@ -151,6 +156,7 @@
 
             <!-- Tab: Tabla de Posiciones -->
             <div class="tab-content active" id="user-ranking">
+                <div class="tab-bg-banner" style="background-image: url('img/banners/posiciones.webp');"></div>
                 <div class="card">
                     <div class="ranking-header">
                         <div class="rank-pos">#</div>
@@ -196,6 +202,7 @@
 
             <!-- Tab: Reglas del Juego -->
             <div class="tab-content" id="user-rules">
+                <div class="tab-bg-banner" style="background-image: url('img/banners/reglas.jpg');"></div>
                 <div class="card">
                     <h3>Reglas del Juego - Quiniela Pachahex</h3>
                     <div class="rules-content">

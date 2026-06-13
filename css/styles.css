@@ -252,6 +252,67 @@ h1, h2, h3, h4 {
     backdrop-filter: blur(6px);
 }
 
+/* Login split container and art panel styles */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    max-width: 850px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.login-art-panel {
+    display: none; /* Ocultado en móvil para que el usuario no tenga que hacer scroll para ver el formulario */
+    width: 100%;
+    max-width: 260px;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-art-image {
+    width: 100%;
+    height: auto;
+    max-height: 380px;
+    object-fit: contain;
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--color-border);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.login-art-image:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 16px 48px rgba(67, 217, 126, 0.15);
+}
+
+@media (min-width: 769px) {
+    .login-container {
+        flex-direction: row;
+        align-items: center;
+        gap: 3.5rem;
+        padding: 1.5rem 0;
+    }
+
+    .login-art-panel {
+        display: flex; /* Visible en pantallas grandes */
+        max-width: 360px;
+        flex: 1;
+    }
+
+    .login-art-image {
+        max-height: 540px;
+    }
+
+    .login-card {
+        flex: 1;
+        margin: 0;
+    }
+}
+
+
 .auth-toggle-link {
     color: var(--gold);
     text-decoration: none;
@@ -422,7 +483,7 @@ input:disabled {
     box-shadow: 0 2px 14px rgba(255, 201, 51, 0.25);
 }
 
-.tab-content { display: none; animation: fadeUp 0.3s ease; }
+.tab-content { display: none; animation: fadeUp 0.3s ease; position: relative; z-index: 1; }
 .tab-content.active { display: block; }
 
 @keyframes fadeUp {
@@ -1081,4 +1142,28 @@ input[type=number] { -moz-appearance: textfield; }
 
 @media (min-width: 769px) {
     .container { padding-bottom: 2rem; }
+}
+
+/* Banners de sección sutiles de fondo */
+.tab-bg-banner {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    height: 220px;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.18;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: var(--radius);
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+}
+
+@media (max-width: 768px) {
+    .tab-bg-banner {
+        height: 180px;
+        opacity: 0.12;
+    }
 }
