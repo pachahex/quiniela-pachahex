@@ -142,15 +142,15 @@
                 </div>
                 <h1 class="display-title">MUNDIAL<span>2026</span></h1>
                 <div class="wc-hero-group" id="group-title-display"><i class="fa-solid fa-users"></i> <span></span></div>
-                <div id="next-match-banner" class="next-match-banner" style="display:none;"></div>
-                <div id="data-freshness" class="data-freshness"></div>
+                <button id="next-match-banner" class="next-match-banner" style="display:none; width: 100%; border: none; cursor: pointer;"></button>
+                <div id="data-freshness" class="data-freshness" style="cursor: pointer;"></div>
             </header>
 
             <div class="tabs tabs-bottom-nav">
                 <button class="tab-btn active" data-target="user-ranking"><i class="fa-solid fa-ranking-star"></i><span>Posiciones</span></button>
-                <button class="tab-btn" data-target="user-predictions"><i class="fa-solid fa-pen-to-square"></i><span>Predicciones</span></button>
-                <button class="tab-btn" data-target="user-results"><i class="fa-solid fa-futbol"></i><span>Partidos</span></button>
-                <button class="tab-btn" data-target="user-group"><i class="fa-solid fa-eye"></i><span>Grupo</span></button>
+                <button class="tab-btn" data-target="user-predictions"><i class="fa-solid fa-pen-to-square"></i><span>Fase de Grupos</span></button>
+                <button class="tab-btn" data-target="user-knockouts"><i class="fa-solid fa-sitemap"></i><span>Eliminatorias</span></button>
+                <button class="tab-btn" data-target="user-group"><i class="fa-solid fa-eye"></i><span>Ver Votos</span></button>
                 <button class="tab-btn" data-target="user-rules"><i class="fa-solid fa-book"></i><span>Reglas</span></button>
             </div>
 
@@ -178,16 +178,32 @@
                 </div>
             </div>
 
-            <!-- Tab: Mis Predicciones -->
+            <!-- Tab: Fase de Grupos -->
             <div class="tab-content" id="user-predictions">
-                <div id="predictions-filters"></div>
-                <div class="jornadas-container" id="user-jornadas-container"></div>
+                <div class="tabs submenu-tabs" style="margin-bottom: 15px;">
+                    <button class="tab-btn active" data-subtarget="pred-partidos">Partidos</button>
+                    <button class="tab-btn" data-subtarget="pred-tablas">Tablas del Mundial</button>
+                </div>
+                
+                <div id="pred-partidos" class="subtab-content active">
+                    <div id="predictions-filters"></div>
+                    <div class="jornadas-container" id="user-jornadas-container"></div>
+                </div>
+                <div id="pred-tablas" class="subtab-content" style="display: none;">
+                    <div id="world-cup-standings-container" class="standings-grid"></div>
+                </div>
             </div>
 
-            <!-- Tab: Partidos / Resultados Oficiales -->
-            <div class="tab-content" id="user-results">
-                <div id="results-filters"></div>
-                <div id="official-results-container"></div>
+            <!-- Tab: Eliminatorias -->
+            <div class="tab-content" id="user-knockouts">
+                <div class="tab-bg-banner" style="background-image: url('img/banners/formularios.webp');"></div>
+                <div class="transparency-intro">
+                    <i class="fa-solid fa-sitemap"></i>
+                    <p>Fase Eliminatoria. Las predicciones estarán disponibles cuando terminen los grupos.</p>
+                </div>
+                <div id="knockout-bracket-container" class="bracket-container">
+                    <!-- The epic bracket will be rendered here via JS -->
+                </div>
             </div>
 
             <!-- Tab: Apuestas del Grupo (Transparencia) -->

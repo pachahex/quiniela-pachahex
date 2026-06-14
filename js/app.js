@@ -98,12 +98,15 @@ function pointsBadge(pts) {
 
 function dayKey(match) {
     const d = kickoffDate(match);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // Restamos 6 horas para que los partidos de madrugada (00:00 - 05:59) se agrupen en el día anterior
+    const shifted = new Date(d.getTime() - (6 * 3600000));
+    return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
 }
 
 function todayKey() {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const shifted = new Date(d.getTime() - (6 * 3600000));
+    return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
 }
 
 function formatDayLabel(key) {
@@ -308,12 +311,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const tabBtn = e.target.closest('.tab-btn');
-            const targetId = tabBtn.getAttribute('data-target');
             tabBtn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             tabBtn.classList.add('active');
-            tabBtn.parentElement.parentElement.querySelectorAll(':scope > .tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(targetId).classList.add('active');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            const targetId = tabBtn.getAttribute('data-target');
+            if (targetId) {
+                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(targetId).classList.add('active');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            const subTargetId = tabBtn.getAttribute('data-subtarget');
+            if (subTargetId) {
+                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .subtab-content').forEach(c => {
+                    c.classList.remove('active');
+                    c.style.display = 'none';
+                });
+                const sub = document.getElementById(subTargetId);
+                sub.classList.add('active');
+                sub.style.display = 'block';
+            }
         });
     });
 
@@ -570,34 +587,211 @@ function renderNextMatchBanner() {
     if (open.length === 0) { banner.style.display = 'none'; return; }
     const next = open[0];
     const remaining = lockDate(next) - new Date();
-    banner.style.display = 'flex';
+    banner.style.display = 'block';
+    
+    // Alerta llamativa
+    let colorClass = remaining < 3600000 * 3 ? 'urgent' : 'normal'; // menos de 3 hrs es urgente
     banner.innerHTML = `
-        <i class="fa-solid fa-hourglass-half"></i>
-        <span>Próximo cierre: <b>${next.equipo_local} vs ${next.equipo_visitante}</b> en <b>${formatCountdown(remaining)}</b></span>
+        <div class="banner-content ${colorClass}" style="display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-hourglass-half fa-spin-pulse"></i>
+            <span style="flex:1;">Próximo cierre: <b>${next.equipo_local} vs ${next.equipo_visitante}</b> en <b>${formatCountdown(remaining)}</b></span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </div>
     `;
+
+    banner.onclick = () => {
+        // Simular clic en la pestaña de Fase de Grupos
+        const tabBtn = document.querySelector('.tab-btn[data-target="user-predictions"]');
+        if (tabBtn) tabBtn.click();
+
+        // Asegurarnos de que estamos en la sub-pestaña "Partidos" y no en "Tablas"
+        const subTabBtn = document.querySelector('.tab-btn[data-subtarget="pred-partidos"]');
+        if (subTabBtn) subTabBtn.click();
+        
+        // Cambiar el filtro al día correcto del partido para que exista en el DOM
+        const targetDay = dayKey(next);
+        if (FILTERS.predictions.dia !== targetDay) {
+            FILTERS.predictions.dia = targetDay;
+            renderFilterBar('predictions-filters', 'predictions', renderPredictionsForm);
+            renderPredictionsForm();
+        }
+        
+        // Hacer scroll hacia el partido específico
+        setTimeout(() => {
+            const matchCard = document.getElementById(`match-card-${next.id}`);
+            if (matchCard) {
+                matchCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                matchCard.style.boxShadow = '0 0 15px var(--color-primary)';
+                setTimeout(() => matchCard.style.boxShadow = '', 2000);
+            }
+        }, 100);
+    };
 }
 
 function renderDataFreshness() {
     const el = document.getElementById('data-freshness');
+    const banner = document.getElementById('next-match-banner');
     if (!el) return;
-    if (!API_META.apiOk) {
-        el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sin conexión con la API de resultados';
+    if (banner && banner.style.display !== 'none') {
+        el.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Presiona arriba para ir a predecir este partido';
+        el.onclick = () => banner.click();
+    } else {
+        if (!API_META.apiOk) {
+            el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sin conexión con la API de resultados';
+            return;
+        }
+        const mins = Math.max(0, Math.round((Date.now() - API_META.ts) / 60000));
+        const src = API_META.fromCache ? 'caché local' : 'API en vivo';
+        el.innerHTML = `<i class="fa-solid fa-tower-broadcast"></i> Resultados automáticos · ${src} · hace ${mins} min`;
+    }
+}
+
+function renderWorldCupStandings() {
+    const container = document.getElementById('world-cup-standings-container');
+    if (!container) return;
+    
+    const groups = {}; 
+    
+    APP_MATCHES.forEach(m => {
+        if (!m.grupo || !m.equipo_local || !m.equipo_visitante) return;
+        const gName = m.grupo.replace('Group', 'Grupo'); // asegurar español
+        if (!groups[gName]) groups[gName] = {};
+        if (!groups[gName][m.equipo_local]) groups[gName][m.equipo_local] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
+        if (!groups[gName][m.equipo_visitante]) groups[gName][m.equipo_visitante] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
+        
+        if (hasResult(m)) {
+            const gl = parseInt(m.goles_local_real, 10) || 0;
+            const gv = parseInt(m.goles_visitante_real, 10) || 0;
+            const tL = groups[gName][m.equipo_local];
+            const tV = groups[gName][m.equipo_visitante];
+            
+            tL.pj++; tV.pj++;
+            tL.gf += gl; tV.gf += gv;
+            tL.gc += gv; tV.gc += gl;
+            tL.dg = tL.gf - tL.gc;
+            tV.dg = tV.gf - tV.gc;
+            
+            if (gl > gv) { tL.pg++; tV.pp++; tL.pts += 3; }
+            else if (gl < gv) { tV.pg++; tL.pp++; tV.pts += 3; }
+            else { tL.pe++; tV.pe++; tL.pts += 1; tV.pts += 1; }
+        }
+    });
+    
+    if (Object.keys(groups).length === 0) {
+        container.innerHTML = '<p class="text-muted" style="text-align:center;">Tablas no disponibles aún.</p>';
         return;
     }
-    const mins = Math.max(0, Math.round((Date.now() - API_META.ts) / 60000));
-    const src = API_META.fromCache ? 'caché local' : 'API en vivo';
-    el.innerHTML = `<i class="fa-solid fa-tower-broadcast"></i> Resultados automáticos · ${src} · hace ${mins} min`;
+    
+    const sortedGroups = Object.keys(groups).sort();
+    let html = '';
+    
+    sortedGroups.forEach(gName => {
+        const teams = Object.keys(groups[gName]).map(t => ({ name: t, ...groups[gName][t] }));
+        teams.sort((a, b) => {
+            if (b.pts !== a.pts) return b.pts - a.pts;
+            if (b.dg !== a.dg) return b.dg - a.dg;
+            return b.gf - a.gf;
+        });
+        
+        html += `
+            <div class="card standings-card" style="margin-bottom: 20px;">
+                <h4 style="text-align: center; color: var(--color-gold); margin-bottom: 10px;">${gName}</h4>
+                <div class="table-responsive" style="overflow-x: auto;">
+                <table class="ranking-table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Equipo</th>
+                            <th style="text-align: center;">PJ</th>
+                            <th style="text-align: center;">G</th>
+                            <th style="text-align: center;">E</th>
+                            <th style="text-align: center;">P</th>
+                            <th style="text-align: center;">DG</th>
+                            <th style="text-align: center;">Pts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        teams.forEach((t, i) => {
+            const rowClass = i < 2 ? 'style="background: rgba(255,215,0,0.1);"' : '';
+            html += `
+                <tr ${rowClass}>
+                    <td style="text-align: left; font-weight: 500; white-space: nowrap;">
+                        <span style="display: inline-block; margin-right: 5px; vertical-align: middle;">${flagImg(t.name, 'team-flag-sm')}</span>
+                        <span style="display: inline-block; vertical-align: middle; max-width: 110px; overflow: hidden; text-overflow: ellipsis;">${t.name}</span>
+                    </td>
+                    <td style="text-align: center;">${t.pj}</td>
+                    <td style="text-align: center;">${t.pg}</td>
+                    <td style="text-align: center;">${t.pe}</td>
+                    <td style="text-align: center;">${t.pp}</td>
+                    <td style="text-align: center;">${t.dg > 0 ? '+'+t.dg : t.dg}</td>
+                    <td style="text-align: center; font-weight: 700; color: var(--color-primary);">${t.pts}</td>
+                </tr>
+            `;
+        });
+        
+        html += `</tbody></table></div></div>`;
+    });
+    
+    container.innerHTML = html;
+}
+
+function renderKnockoutBracket() {
+    const container = document.getElementById('knockout-bracket-container');
+    if (!container) return;
+
+    const r32 = APP_MATCHES.filter(m => m.jornada === 'Round of 32');
+    const r16 = APP_MATCHES.filter(m => m.jornada === 'Round of 16');
+    const qf = APP_MATCHES.filter(m => m.jornada === 'Quarter-final');
+    const sf = APP_MATCHES.filter(m => m.jornada === 'Semi-final');
+    const finals = APP_MATCHES.filter(m => m.jornada === 'Match for third place' || m.jornada === 'Final');
+
+    if (r32.length === 0) {
+        container.innerHTML = '<p class="text-muted" style="text-align:center;">Las eliminatorias aún no están disponibles en el calendario de la API.</p>';
+        return;
+    }
+
+    const renderCol = (title, matches) => {
+        let html = `<div class="bracket-col"><h4 class="bracket-col-title">${title}</h4>`;
+        matches.forEach(m => {
+            html += `
+                <div class="bracket-match">
+                    <div class="bm-team">
+                        <span class="bm-team-name">${flagImg(m.equipo_local)} ${m.equipo_local}</span>
+                        <input type="number" placeholder="-" disabled title="Predicciones bloqueadas hasta fin de grupos">
+                    </div>
+                    <div class="bm-team">
+                        <span class="bm-team-name">${flagImg(m.equipo_visitante)} ${m.equipo_visitante}</span>
+                        <input type="number" placeholder="-" disabled title="Predicciones bloqueadas hasta fin de grupos">
+                    </div>
+                    <div class="bm-meta">${formatTime(m)} · Partido ${m.id}</div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        return html;
+    };
+
+    container.innerHTML = `
+        <div class="bracket-wrapper">
+            ${renderCol('Dieciseisavos', r32)}
+            ${renderCol('Octavos', r16)}
+            ${renderCol('Cuartos', qf)}
+            ${renderCol('Semifinal', sf)}
+            ${renderCol('Finales', finals)}
+        </div>
+    `;
 }
 
 // --- VISTAS DE USUARIO ---
 function renderUserViews() {
     renderFilterBar('predictions-filters', 'predictions', renderPredictionsForm);
-    renderFilterBar('results-filters', 'results', renderResultsList);
     renderFilterBar('group-filters', 'group', renderGroupBets, { estados: [['all', 'Todos'], ['locked', 'Cerrados'], ['finished', 'Finalizados']] });
     renderPredictionsForm();
     renderRankingTable();
-    renderResultsList();
     renderGroupBets();
+    renderWorldCupStandings();
+    renderKnockoutBracket();
 }
 
 // Tarjeta de partido para "Mis Predicciones"
@@ -629,11 +823,15 @@ function predictionCard(match) {
             </div>`;
     }
 
+    const dateObj = kickoffDate(match);
+    const isMadrugada = dateObj.getHours() >= 0 && dateObj.getHours() < 6;
+    const madrugadaBadge = isMadrugada ? `<span class="madrugada-badge" style="margin-left: 5px; color: var(--color-primary); font-size: 0.75rem;"><i class="fa-solid fa-moon"></i> Madrugada</span>` : '';
+
     return `
-        <div class="match-card ${isLocked ? 'locked' : ''}" data-match="${match.id}">
+        <div class="match-card ${isLocked ? 'locked' : ''}" id="match-card-${match.id}" data-match="${match.id}">
             ${badgeHtml}
             <div class="match-header">
-                <span class="match-meta"><span class="jornada-chip">J${match.jornada}</span> ${formatTime(match)}</span>
+                <span class="match-meta"><span class="jornada-chip">J${match.jornada}</span> ${formatTime(match)} ${madrugadaBadge}</span>
                 ${statusChip(match)}
             </div>
             <div class="match-teams">

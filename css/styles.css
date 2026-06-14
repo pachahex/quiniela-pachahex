@@ -1167,3 +1167,166 @@ input[type=number] { -moz-appearance: textfield; }
         opacity: 0.12;
     }
 }
+
+/* --- REFACTOR CSS --- */
+
+.submenu-tabs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 5px;
+    border-radius: 12px;
+}
+
+.submenu-tabs .tab-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--color-text-muted);
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.submenu-tabs .tab-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.subtab-content {
+    animation: fadeIn 0.3s ease;
+}
+
+.standings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.standings-card {
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.banner-content.urgent {
+    color: #ff4757;
+}
+
+.banner-content.urgent i {
+    color: #ff4757;
+}
+
+.banner-content.normal {
+    color: var(--color-primary);
+}
+
+.madrugada-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 215, 0, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* Bracket Container */
+.bracket-container {
+    overflow-x: auto;
+    padding: 20px 0;
+    min-height: 400px;
+}
+
+
+/* Bracket Epic Styling */
+.bracket-wrapper {
+    display: flex;
+    gap: 40px;
+    min-width: max-content;
+    padding: 20px 0;
+}
+.bracket-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 15px;
+}
+.bracket-col-title {
+    text-align: center;
+    color: var(--color-gold);
+    margin-bottom: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+}
+.bracket-match {
+    background: var(--color-surface);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 10px;
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+.bm-team {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+.bm-team-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.bm-team input {
+    width: 35px;
+    height: 30px;
+    text-align: center;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 4px;
+    font-family: inherit;
+    font-weight: 700;
+}
+.bm-team input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.bm-meta {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    margin-top: 5px;
+    padding-top: 5px;
+}
+
+
+/* Table Compression */
+.ranking-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.ranking-table th, .ranking-table td {
+    padding: 6px 3px;
+}
+.ranking-table th {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
