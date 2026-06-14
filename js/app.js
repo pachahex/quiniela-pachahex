@@ -285,43 +285,55 @@ function initApp() {
         }
     });
 
-    document.getElementById('toggle-auth-mode').addEventListener('click', (e) => {
+    document.getElementById('toggle-auth-mode').addEventListener('click', async (e) => {
         e.preventDefault();
         isRegisterMode = !isRegisterMode;
-        document.getElementById('login-title').textContent = isRegisterMode ? 'Registro' : 'Iniciar Sesión';
+        document.getElementById('auth-title').innerText = isRegisterMode ? 'Crear Cuenta' : 'Iniciar Sesión';
+        document.getElementById('auth-subtitle').innerText = isRegisterMode ? 'Regístrate para participar.' : 'Ingresa tus credenciales para continuar.';
         document.getElementById('btn-login').style.display = isRegisterMode ? 'none' : 'block';
         document.getElementById('btn-register').style.display = isRegisterMode ? 'block' : 'none';
-        document.getElementById('login-group').style.display = isRegisterMode ? 'block' : 'none';
-        e.target.textContent = isRegisterMode ? '¿Ya tienes cuenta? Entra aquí' : '¿No tienes cuenta? Regístrate aquí';
-        hint.style.display = 'none';
-        if (isRegisterMode && document.getElementById('login-group').options.length <= 1) {
-            loadGroupsForSelect();
-        }
+        document.getElementById('group-select-container').style.display = isRegisterMode ? 'block' : 'none';
+        hint.style.display = isRegisterMode ? 'block' : 'none';
+        e.target.innerText = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí';
+        document.getElementById('login-error').innerText = '';
+        if (isRegisterMode) await loadGroupsForSelect();
     });
 
+    document.getElementById('toggle-password-icon').addEventListener('click', (e) => {
+        const input = document.getElementById('login-password');
+        const isPwd = input.type === 'password';
+        input.type = isPwd ? 'text' : 'password';
+        e.target.classList.toggle('fa-eye', !isPwd);
+        e.target.classList.toggle('fa-eye-slash', isPwd);
+    });
+
+    // Navegación por pestañas
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const target = e.currentTarget.dataset.target;
-            const subtarget = e.currentTarget.dataset.subtarget;
-            
-            if (target) {
-                document.querySelectorAll('.tabs-bottom-nav .tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tabs-top .tab-btn').forEach(b => b.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-                
-                const views = document.querySelectorAll(currentUserData?.role === 'admin' ? '#admin-section > .tab-content' : '#user-section > .tab-content');
-                views.forEach(v => v.classList.remove('active'));
-                const view = document.getElementById(target);
-                if (view) view.classList.add('active');
+            const tabBtn = e.target.closest('.tab-btn');
+            tabBtn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            tabBtn.classList.add('active');
 
-                if (target === 'admin-rankings') renderAdminRankings();
-            } else if (subtarget) {
-                document.querySelectorAll('.submenu-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-                document.querySelectorAll('.subtab-content').forEach(v => v.classList.remove('active'));
-                document.getElementById(subtarget).classList.add('active');
+            const targetId = tabBtn.getAttribute('data-target');
+            if (targetId) {
+                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(targetId).classList.add('active');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 
-                if (subtarget === 'pred-tablas') {
+                if (targetId === 'admin-rankings') renderAdminRankings();
+            }
+
+            const subTargetId = tabBtn.getAttribute('data-subtarget');
+            if (subTargetId) {
+                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .subtab-content').forEach(c => {
+                    c.classList.remove('active');
+                    c.style.display = 'none';
+                });
+                const sub = document.getElementById(subTargetId);
+                sub.classList.add('active');
+                sub.style.display = 'block';
+                
+                if (subTargetId === 'pred-tablas') {
                     renderWorldCupStandings();
                 }
             }
