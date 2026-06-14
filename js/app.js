@@ -267,7 +267,7 @@ function renderFilterBar(containerId, filterKey, onChange, opts = {}) {
 }
 
 // --- EVENT LISTENERS GLOBALES ---
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
     document.getElementById('btn-login').addEventListener('click', () => handleAuth(false));
     document.getElementById('btn-register').addEventListener('click', () => handleAuth(true));
     document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
@@ -285,51 +285,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('toggle-auth-mode').addEventListener('click', async (e) => {
+    document.getElementById('toggle-auth-mode').addEventListener('click', (e) => {
         e.preventDefault();
         isRegisterMode = !isRegisterMode;
-        document.getElementById('auth-title').innerText = isRegisterMode ? 'Crear Cuenta' : 'Iniciar Sesión';
-        document.getElementById('auth-subtitle').innerText = isRegisterMode ? 'Regístrate para participar.' : 'Ingresa tus credenciales para continuar.';
+        document.getElementById('login-title').textContent = isRegisterMode ? 'Registro' : 'Iniciar Sesión';
         document.getElementById('btn-login').style.display = isRegisterMode ? 'none' : 'block';
         document.getElementById('btn-register').style.display = isRegisterMode ? 'block' : 'none';
-        document.getElementById('group-select-container').style.display = isRegisterMode ? 'block' : 'none';
-        hint.style.display = isRegisterMode ? 'block' : 'none';
-        e.target.innerText = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí';
-        document.getElementById('login-error').innerText = '';
-        if (isRegisterMode) await loadGroupsForSelect();
+        document.getElementById('login-group').style.display = isRegisterMode ? 'block' : 'none';
+        e.target.textContent = isRegisterMode ? '¿Ya tienes cuenta? Entra aquí' : '¿No tienes cuenta? Regístrate aquí';
+        hint.style.display = 'none';
+        if (isRegisterMode && document.getElementById('login-group').options.length <= 1) {
+            loadGroupsForSelect();
+        }
     });
 
-    document.getElementById('toggle-password-icon').addEventListener('click', (e) => {
-        const input = document.getElementById('login-password');
-        const isPwd = input.type === 'password';
-        input.type = isPwd ? 'text' : 'password';
-        e.target.classList.toggle('fa-eye', !isPwd);
-        e.target.classList.toggle('fa-eye-slash', isPwd);
-    });
-
-    // Navegación por pestañas
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const tabBtn = e.target.closest('.tab-btn');
-            tabBtn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            tabBtn.classList.add('active');
+            const target = e.currentTarget.dataset.target;
+            const subtarget = e.currentTarget.dataset.subtarget;
+            
+            if (target) {
+                document.querySelectorAll('.tabs-bottom-nav .tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tabs-top .tab-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                
+                const views = document.querySelectorAll(currentUserData?.role === 'admin' ? '#admin-section > .tab-content' : '#user-section > .tab-content');
+                views.forEach(v => v.classList.remove('active'));
+                const view = document.getElementById(target);
+                if (view) view.classList.add('active');
 
-            const targetId = tabBtn.getAttribute('data-target');
-            if (targetId) {
-                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .tab-content').forEach(c => c.classList.remove('active'));
-                document.getElementById(targetId).classList.add('active');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-
-            const subTargetId = tabBtn.getAttribute('data-subtarget');
-            if (subTargetId) {
-                tabBtn.parentElement.parentElement.querySelectorAll(':scope > .subtab-content').forEach(c => {
-                    c.classList.remove('active');
-                    c.style.display = 'none';
-                });
-                const sub = document.getElementById(subTargetId);
-                sub.classList.add('active');
-                sub.style.display = 'block';
+                if (target === 'admin-rankings') renderAdminRankings();
+            } else if (subtarget) {
+                document.querySelectorAll('.submenu-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                document.querySelectorAll('.subtab-content').forEach(v => v.classList.remove('active'));
+                document.getElementById(subtarget).classList.add('active');
+                
+                if (subtarget === 'pred-tablas') {
+                    renderWorldCupStandings();
+                }
             }
         });
     });
@@ -337,16 +331,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.close-modal').addEventListener('click', () => {
         document.getElementById('other-user-predictions-modal').style.display = 'none';
     });
-    document.getElementById('other-user-predictions-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'other-user-predictions-modal') e.target.style.display = 'none';
+    window.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('other-user-predictions-modal')) {
+            document.getElementById('other-user-predictions-modal').style.display = 'none';
+        }
     });
 
-    document.getElementById('btn-create-group').addEventListener('click', createGroup);
+    document.getElementById('btn-create-group')?.addEventListener('click', createGroup);
 
-    // Validación: solo enteros positivos en inputs de marcador
+
+
     document.addEventListener('keydown', (e) => {
         if (e.target.classList.contains('score-input')) {
-            const allowedKeys = ['Backspace', 'Tab', 'Delete', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            const allowedKeys = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete'];
             if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey) return;
             if (!/^[0-9]$/.test(e.key)) e.preventDefault();
         }
@@ -362,7 +359,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!/^\d+$/.test(pasteData)) e.preventDefault();
         }
     });
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
 
 // --- AUTH ---
 function formatEmail(username) {
