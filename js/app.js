@@ -15,7 +15,7 @@ import {
     getDocs
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-import { flagImg } from './teams.js';
+import { flagImg, canonicalTeam } from './teams.js';
 import { loadTournamentData } from './api.js?v=1.1';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -670,15 +670,19 @@ function renderWorldCupStandings() {
     APP_MATCHES.forEach(m => {
         if (!m.grupo || !m.equipo_local || !m.equipo_visitante) return;
         const gName = m.grupo.replace('Group', 'Grupo'); // asegurar español
+        
+        const eqL = canonicalTeam(m.equipo_local);
+        const eqV = canonicalTeam(m.equipo_visitante);
+
         if (!groups[gName]) groups[gName] = {};
-        if (!groups[gName][m.equipo_local]) groups[gName][m.equipo_local] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
-        if (!groups[gName][m.equipo_visitante]) groups[gName][m.equipo_visitante] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
+        if (!groups[gName][eqL]) groups[gName][eqL] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
+        if (!groups[gName][eqV]) groups[gName][eqV] = { pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0 };
         
         if (hasResult(m)) {
             const gl = parseInt(m.goles_local_real, 10) || 0;
             const gv = parseInt(m.goles_visitante_real, 10) || 0;
-            const tL = groups[gName][m.equipo_local];
-            const tV = groups[gName][m.equipo_visitante];
+            const tL = groups[gName][eqL];
+            const tV = groups[gName][eqV];
             
             tL.pj++; tV.pj++;
             tL.gf += gl; tV.gf += gv;

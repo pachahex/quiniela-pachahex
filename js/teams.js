@@ -58,7 +58,7 @@ export const TEAMS = {
 const EN_ALIASES = { 'Curacao': 'Curaçao', 'United States': 'USA', 'Czechia': 'Czech Republic', 'Türkiye': 'Turkey', "Côte d'Ivoire": 'Ivory Coast' };
 
 // El fixture local usa más de un nombre para el mismo equipo; canonicalizamos para cruzar partidos.
-const ES_ALIASES = { 'EE. UU.': 'Estados Unidos' };
+const ES_ALIASES = { 'EE. UU.': 'Estados Unidos', 'EEUU': 'Estados Unidos' };
 
 export function canonicalTeam(teamEs) {
     return ES_ALIASES[teamEs] || teamEs;
