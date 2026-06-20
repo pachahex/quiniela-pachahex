@@ -994,27 +994,62 @@ function showOtherUserPredictions(targetUid, targetUsername) {
     }
 
     const preds = (GROUP_PREDS[targetUid] && GROUP_PREDS[targetUid].matches) || {};
-    let html = '<div class="mini-pred-list">';
-    closedMatches.forEach(match => {
-        const p = preds[match.id];
-        const pL = p && p.l !== '' ? p.l : '-';
-        const pV = p && p.v !== '' ? p.v : '-';
-        let badgeHtml = '';
-        if (matchStatus(match) === 'finished') {
-            const pts = calculateMatchPoints(pL, pV, match.goles_local_real, match.goles_visitante_real);
-            badgeHtml = pointsBadge(pts);
-        }
-        html += `
-            <div class="mini-pred-item">
-                <div class="mini-pred-teams">
-                    ${flagImg(match.equipo_local, 'team-flag-sm')} <span>${match.equipo_local}</span>
-                    <b class="mini-pred-score">${pL} - ${pV}</b>
-                    <span>${match.equipo_visitante}</span> ${flagImg(match.equipo_visitante, 'team-flag-sm')}
-                </div>
-                ${badgeHtml}
-            </div>
-        `;
+    
+    // Agrupar por jornada
+    const grouped = {};
+    closedMatches.forEach(m => {
+        const j = isNaN(m.jornada) ? m.jornada : `Jornada ${m.jornada}`;
+        if (!grouped[j]) grouped[j] = [];
+        grouped[j].push(m);
     });
+
+    let html = '<div class="jornadas-accordion" style="display:flex; flex-direction:column; gap:10px;">';
+    
+    // Ordenar jornadas
+    const sortedJornadas = Object.keys(grouped).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''));
+        const numB = parseInt(b.replace(/\D/g, ''));
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        if (!isNaN(numA)) return -1;
+        if (!isNaN(numB)) return 1;
+        return a.localeCompare(b);
+    });
+
+    sortedJornadas.forEach((jName, idx) => {
+        const matches = grouped[jName];
+        // Abrir la última jornada por defecto
+        const isOpen = (idx === sortedJornadas.length - 1) ? 'open' : '';
+        
+        html += `<details class="bets-card" ${isOpen}>
+            <summary style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; color:var(--color-primary);">${jName}</span>
+                <i class="fa-solid fa-chevron-down" style="font-size:0.8rem; color:var(--color-text-muted);"></i>
+            </summary>
+            <div class="mini-pred-list" style="padding: 10px; border-top: 1px solid var(--color-border); background: rgba(0,0,0,0.2);">`;
+        
+        matches.forEach(match => {
+            const p = preds[match.id];
+            const pL = p && p.l !== '' ? p.l : '-';
+            const pV = p && p.v !== '' ? p.v : '-';
+            let badgeHtml = '';
+            if (matchStatus(match) === 'finished') {
+                const pts = calculateMatchPoints(pL, pV, match.goles_local_real, match.goles_visitante_real);
+                badgeHtml = pointsBadge(pts);
+            }
+            html += `
+                <div class="mini-pred-item" style="margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+                    <div class="mini-pred-teams">
+                        ${flagImg(match.equipo_local, 'team-flag-sm')} <span>${match.equipo_local}</span>
+                        <b class="mini-pred-score">${pL} - ${pV}</b>
+                        <span>${match.equipo_visitante}</span> ${flagImg(match.equipo_visitante, 'team-flag-sm')}
+                    </div>
+                    ${badgeHtml}
+                </div>
+            `;
+        });
+        html += `</div></details>`;
+    });
+
     html += '</div>';
     list.innerHTML = html;
 }
