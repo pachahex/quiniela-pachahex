@@ -55,6 +55,18 @@ const isKnockout = (m) => {
     return ['32', '16', 'quarter', 'semi', 'final', 'third', 'tercer', 'octavos', 'dieciseisavos', 'cuartos'].some(k => j.includes(k));
 };
 
+// Filtra una lista de partidos por ronda eliminatoria usando un sentinel 'ko:XXX'
+function filterByKoRound(list, sentinel) {
+    const r = String(sentinel).replace('ko:', '');
+    const j = (m) => String(m.jornada).toLowerCase();
+    if (r === 'r32')   return list.filter(m => j(m).includes('32')      || j(m).includes('dieciseisavos'));
+    if (r === 'r16')   return list.filter(m => j(m).includes('16')      || j(m).includes('octavos'));
+    if (r === 'qf')    return list.filter(m => j(m).includes('quarter') || j(m).includes('cuartos'));
+    if (r === 'sf')    return list.filter(m => j(m).includes('semi'));
+    if (r === 'finals') return list.filter(m => j(m).includes('final') || j(m).includes('third') || j(m).includes('tercer'));
+    return list;
+}
+
 // Filtros por vista: jornada ('all'|1|2|3), dia ('YYYY-MM-DD'|null = auto), estado, q
 const FILTERS = {
     predictions: { jornada: 'all', estado: 'all', dia: null, q: '' },
@@ -178,7 +190,13 @@ function teamRow(name, side) {
 function allDays(jornada, isGroupStage = false) {
     let list = APP_MATCHES;
     if (isGroupStage) list = list.filter(m => !isKnockout(m));
-    if (jornada !== 'all') list = list.filter(m => m.jornada === jornada);
+    if (jornada !== 'all') {
+        if (typeof jornada === 'string' && jornada.startsWith('ko:')) {
+            list = filterByKoRound(list, jornada);
+        } else {
+            list = list.filter(m => m.jornada === jornada);
+        }
+    }
     return [...new Set(list.slice().sort((a, b) => kickoffDate(a) - kickoffDate(b)).map(dayKey))];
 }
 
@@ -198,7 +216,13 @@ function ensureDay(f, isGroupStage = false) {
 function applyFilter(filter, isGroupStage = false) {
     let list = [...APP_MATCHES];
     if (isGroupStage) list = list.filter(m => !isKnockout(m));
-    if (filter.jornada !== 'all') list = list.filter(m => m.jornada === filter.jornada);
+    if (filter.jornada !== 'all') {
+        if (typeof filter.jornada === 'string' && filter.jornada.startsWith('ko:')) {
+            list = filterByKoRound(list, filter.jornada);
+        } else {
+            list = list.filter(m => m.jornada === filter.jornada);
+        }
+    }
     if (filter.q) {
         const q = filter.q.toLowerCase();
         list = list.filter(m => m.equipo_local.toLowerCase().includes(q) || m.equipo_visitante.toLowerCase().includes(q));
@@ -215,7 +239,8 @@ function renderFilterBar(containerId, filterKey, onChange, opts = {}) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const f = FILTERS[filterKey];
-    const isGroupStage = true; // Por ahora, las filter bars son solo para fase de grupos
+    // isGroupStage puede venir en opts; por defecto true (solo fase de grupos)
+    const isGroupStage = opts.isGroupStage !== undefined ? opts.isGroupStage : true;
     const days = ensureDay(f, isGroupStage);
     const today = todayKey();
 
@@ -235,13 +260,17 @@ function renderFilterBar(containerId, filterKey, onChange, opts = {}) {
             </button>`;
     }).join('');
 
+    // Chips configurables desde opts; por defecto solo las 3 jornadas de fase de grupos
+    const defaultChips = [['all', 'Todas'], [1, 'Jornada 1'], [2, 'Jornada 2'], [3, 'Jornada 3']];
+    const chipDefs = opts.chips || defaultChips;
+    const chipsHtml = chipDefs.map(([val, label]) =>
+        `<button class="chip ${String(f.jornada) === String(val) ? 'active' : ''}" data-f="jornada" data-v="${val}">${label}</button>`
+    ).join('');
+
     container.innerHTML = `
         <div class="filter-bar">
             <div class="filter-row chips-scroll">
-                <button class="chip ${f.jornada === 'all' ? 'active' : ''}" data-f="jornada" data-v="all">Todas</button>
-                <button class="chip ${f.jornada === 1 ? 'active' : ''}" data-f="jornada" data-v="1">Jornada 1</button>
-                <button class="chip ${f.jornada === 2 ? 'active' : ''}" data-f="jornada" data-v="2">Jornada 2</button>
-                <button class="chip ${f.jornada === 3 ? 'active' : ''}" data-f="jornada" data-v="3">Jornada 3</button>
+                ${chipsHtml}
             </div>
             <div class="filter-row day-strip chips-scroll">${dayPills}</div>
             <div class="filter-row filter-inputs">
@@ -259,7 +288,8 @@ function renderFilterBar(containerId, filterKey, onChange, opts = {}) {
     container.querySelectorAll('.chip').forEach(chip => {
         chip.addEventListener('click', () => {
             let val = chip.getAttribute('data-v');
-            if (val !== 'all') val = parseInt(val);
+            // Solo convertir a int si es un número real (jornadas 1/2/3), no 'all' ni sentinels 'ko:XXX'
+            if (val !== 'all' && !val.startsWith('ko:')) val = parseInt(val);
             f.jornada = val;
             f.dia = null; // recalcular el día por defecto de la jornada
             renderFilterBar(containerId, filterKey, onChange, opts);
@@ -959,7 +989,21 @@ function renderKnockoutBracket() {
 // --- VISTAS DE USUARIO ---
 function renderUserViews() {
     renderFilterBar('predictions-filters', 'predictions', renderPredictionsForm);
-    renderFilterBar('group-filters', 'group', renderGroupBets, { estados: [['all', 'Todos'], ['locked', 'Cerrados'], ['finished', 'Finalizados']] });
+    renderFilterBar('group-filters', 'group', renderGroupBets, {
+        isGroupStage: false,
+        estados: [['all', 'Todos'], ['locked', 'Cerrados'], ['finished', 'Finalizados']],
+        chips: [
+            ['all',      'Todas'],
+            [1,          'Jornada 1'],
+            [2,          'Jornada 2'],
+            [3,          'Jornada 3'],
+            ['ko:r32',   'Dieciseisavos'],
+            ['ko:r16',   'Octavos'],
+            ['ko:qf',    'Cuartos'],
+            ['ko:sf',    'Semifinales'],
+            ['ko:finals','Finales'],
+        ]
+    });
     renderPredictionsForm();
     renderRankingTable();
     renderGroupBets();
@@ -1308,7 +1352,7 @@ function groupBetsCard(match) {
                         <b>${scoreLabel}</b>
                         ${match.equipo_visitante} ${flagImg(match.equipo_visitante, 'team-flag-sm')}
                     </span>
-                    <span class="bets-meta"><span class="jornada-chip">J${match.jornada}</span> ${statusChip(match)}</span>
+                    <span class="bets-meta"><span class="jornada-chip">${isNaN(match.jornada) ? match.jornada : `J${match.jornada}`}</span> ${statusChip(match)}</span>
                 </div>
             </summary>
             <div class="bet-rows">
@@ -1322,7 +1366,8 @@ function groupBetsCard(match) {
 function renderGroupBets() {
     const container = document.getElementById('group-bets-container');
     // Solo partidos con apuestas cerradas: transparencia sin exponer predicciones futuras
-    const matches = applyFilter(FILTERS.group, true).filter(isMatchLocked);
+    // isGroupStage = false para incluir también los partidos de eliminatoria
+    const matches = applyFilter(FILTERS.group, false).filter(isMatchLocked);
     if (matches.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-user-secret"></i><p>Este día no tiene partidos con apuestas cerradas. Las predicciones son secretas hasta 1 hora antes de cada partido.</p></div>`;
         return;
