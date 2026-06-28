@@ -940,6 +940,9 @@ function renderKnockoutBracket() {
     if (CURRENT_KO_DAY !== 'all') {
         filteredMatches = allMatches.filter(m => dayKey(m) === CURRENT_KO_DAY);
     }
+    
+    // Sort chronologically just like group stage matches
+    filteredMatches.sort((a, b) => kickoffDate(a) - kickoffDate(b));
 
     container.innerHTML = `
         <div class="jornada-block" style="margin-bottom: 2rem;">
