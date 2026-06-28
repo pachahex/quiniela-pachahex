@@ -43,8 +43,17 @@ let APP_MATCHES = [];   // fixture enriquecido con API (fechas, sedes, resultado
 let API_META = { apiOk: false, fromCache: false, ts: null };
 let GROUP_USERS = [];   // usuarios del mismo grupo (sin admins)
 let GROUP_PREDS = {};   // uid -> { matches: {...} }
+let KNOCKOUTS_ENABLED = false; // Maestro de eliminatorias
+let CURRENT_KO_ROUND = 'r32'; // Paginación de eliminatorias
+let CURRENT_KO_DAY = 'all'; // Filtro de fechas en eliminatorias
+let CURRENT_GROUP_DATA = null; // Datos del grupo actual (incluye podio y fecha reset)
 let tickerInterval = null;
 let refreshInterval = null;
+
+const isKnockout = (m) => {
+    const j = String(m.jornada).toLowerCase();
+    return ['32', '16', 'quarter', 'semi', 'final', 'third', 'tercer', 'octavos', 'dieciseisavos', 'cuartos'].some(k => j.includes(k));
+};
 
 // Filtros por vista: jornada ('all'|1|2|3), dia ('YYYY-MM-DD'|null = auto), estado, q
 const FILTERS = {
@@ -54,11 +63,17 @@ const FILTERS = {
 };
 
 // --- HELPERS DE PARTIDOS ---
-function kickoffDate(match) { return new Date(match.fecha_hora); }
-function lockDate(match) { return new Date(kickoffDate(match).getTime() - LOCK_MINUTES_BEFORE * 60 * 1000); }
+function kickoffDate(match) { return match.fecha_hora ? new Date(match.fecha_hora) : null; }
+function lockDate(match) { 
+    const d = kickoffDate(match);
+    if (!d) return null;
+    return new Date(d.getTime() - LOCK_MINUTES_BEFORE * 60 * 1000); 
+}
 
 function isMatchLocked(match) {
-    return new Date() >= lockDate(match);
+    const d = lockDate(match);
+    if (!d) return true; // Si no hay fecha oficial, se bloquea por seguridad
+    return new Date() >= d;
 }
 
 function hasResult(match) {
@@ -98,6 +113,7 @@ function pointsBadge(pts) {
 
 function dayKey(match) {
     const d = kickoffDate(match);
+    if (!d) return 'TBD';
     // Restamos 6 horas para que los partidos de madrugada (00:00 - 05:59) se agrupen en el día anterior
     const shifted = new Date(d.getTime() - (6 * 3600000));
     return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
@@ -116,7 +132,9 @@ function formatDayLabel(key) {
 }
 
 function formatTime(match) {
-    return kickoffDate(match).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const d = kickoffDate(match);
+    if (!d) return 'Por definir';
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatCountdown(ms) {
@@ -134,8 +152,10 @@ function statusChip(match) {
     const st = matchStatus(match);
     if (st === 'finished') return `<span class="status-chip finished"><i class="fa-solid fa-flag-checkered"></i> Final</span>`;
     if (st === 'locked') return `<span class="status-chip locked"><i class="fa-solid fa-lock"></i> Apuestas cerradas</span>`;
-    const remaining = lockDate(match) - new Date();
-    return `<span class="status-chip open" data-lock="${lockDate(match).getTime()}"><i class="fa-solid fa-stopwatch"></i> Cierra en <b class="countdown">${formatCountdown(remaining)}</b></span>`;
+    const ld = lockDate(match);
+    if (!ld) return `<span class="status-chip locked"><i class="fa-solid fa-lock"></i> Horario TBD</span>`;
+    const remaining = ld - new Date();
+    return `<span class="status-chip open" data-lock="${ld.getTime()}"><i class="fa-solid fa-stopwatch"></i> Cierra en <b class="countdown">${formatCountdown(remaining)}</b></span>`;
 }
 
 function venueLine(match) {
@@ -155,8 +175,9 @@ function teamRow(name, side) {
 }
 
 // --- FILTROS Y NAVEGACIÓN POR DÍAS ---
-function allDays(jornada) {
+function allDays(jornada, isGroupStage = false) {
     let list = APP_MATCHES;
+    if (isGroupStage) list = list.filter(m => !isKnockout(m));
     if (jornada !== 'all') list = list.filter(m => m.jornada === jornada);
     return [...new Set(list.slice().sort((a, b) => kickoffDate(a) - kickoffDate(b)).map(dayKey))];
 }
@@ -168,14 +189,15 @@ function defaultDay(days) {
     return future || days[days.length - 1] || null;
 }
 
-function ensureDay(f) {
-    const days = allDays(f.jornada);
+function ensureDay(f, isGroupStage = false) {
+    const days = allDays(f.jornada, isGroupStage);
     if (!f.dia || !days.includes(f.dia)) f.dia = defaultDay(days);
     return days;
 }
 
-function applyFilter(filter) {
+function applyFilter(filter, isGroupStage = false) {
     let list = [...APP_MATCHES];
+    if (isGroupStage) list = list.filter(m => !isKnockout(m));
     if (filter.jornada !== 'all') list = list.filter(m => m.jornada === filter.jornada);
     if (filter.q) {
         const q = filter.q.toLowerCase();
@@ -193,7 +215,8 @@ function renderFilterBar(containerId, filterKey, onChange, opts = {}) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const f = FILTERS[filterKey];
-    const days = ensureDay(f);
+    const isGroupStage = true; // Por ahora, las filter bars son solo para fase de grupos
+    const days = ensureDay(f, isGroupStage);
     const today = todayKey();
 
     const estadoOptions = opts.estados || [
@@ -337,6 +360,15 @@ function initApp() {
                     renderWorldCupStandings();
                 }
             }
+        });
+    });
+
+    document.querySelectorAll('#knockout-rounds-tabs .chip').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('#knockout-rounds-tabs .chip').forEach(c => c.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            CURRENT_KO_ROUND = e.currentTarget.getAttribute('data-round');
+            renderKnockoutBracket();
         });
     });
 
@@ -496,7 +528,12 @@ onAuthStateChanged(auth, async (user) => {
 
             if (currentUserData.grupo_id) {
                 const gDoc = await getDoc(doc(db, "grupos", currentUserData.grupo_id));
-                document.querySelector('#group-title-display span').innerText = gDoc.exists() ? gDoc.data().nombre : 'Grupo Desconocido';
+                if (gDoc.exists()) {
+                    document.querySelector('#group-title-display span').innerText = gDoc.data().nombre;
+                    currentUserData.resetDate = gDoc.data().resetDate || null;
+                } else {
+                    document.querySelector('#group-title-display span').innerText = 'Grupo Desconocido';
+                }
             } else {
                 document.querySelector('#group-title-display span').innerText = 'Sin Grupo';
             }
@@ -520,17 +557,27 @@ onAuthStateChanged(auth, async (user) => {
 // --- CARGA DE DATOS ---
 async function fetchMatches() {
     const docSnap = await getDoc(doc(db, "sistema", "partidos"));
-    BASE_MATCHES = docSnap.exists() ? (docSnap.data().lista || []) : [];
+    if (docSnap.exists()) {
+        const d = docSnap.data();
+        BASE_MATCHES = d.lista || [];
+        KNOCKOUTS_ENABLED = d.knockouts_enabled || false;
+    } else {
+        BASE_MATCHES = [];
+        KNOCKOUTS_ENABLED = false;
+    }
     const { matches, meta } = await loadTournamentData(BASE_MATCHES);
     APP_MATCHES = matches;
     API_META = meta;
 }
 
 async function loadGroupData() {
-    const [usersSnap, predsSnap] = await Promise.all([
+    const [usersSnap, predsSnap, groupSnap] = await Promise.all([
         getDocs(collection(db, "usuarios")),
-        getDocs(collection(db, "predicciones"))
+        getDocs(collection(db, "predicciones")),
+        getDoc(doc(db, "grupos", currentUserData.grupo_id))
     ]);
+
+    CURRENT_GROUP_DATA = groupSnap.exists() ? groupSnap.data() : null;
 
     GROUP_USERS = [];
     usersSnap.forEach(d => {
@@ -615,20 +662,45 @@ function renderNextMatchBanner() {
     `;
 
     banner.onclick = () => {
-        // Simular clic en la pestaña de Fase de Grupos
-        const tabBtn = document.querySelector('.tab-btn[data-target="user-predictions"]');
-        if (tabBtn) tabBtn.click();
+        if (isKnockout(next)) {
+            // Ir a Eliminatorias
+            const tabBtn = document.querySelector('.tab-btn[data-target="user-knockouts"]');
+            if (tabBtn) tabBtn.click();
+            
+            // Determinar la ronda correcta
+            const j = String(next.jornada).toLowerCase();
+            if (j.includes('32') || j.includes('dieciseisavos')) CURRENT_KO_ROUND = 'r32';
+            else if (j.includes('16') || j.includes('octavos')) CURRENT_KO_ROUND = 'r16';
+            else if (j.includes('quarter') || j.includes('cuartos')) CURRENT_KO_ROUND = 'qf';
+            else if (j.includes('semi')) CURRENT_KO_ROUND = 'sf';
+            else CURRENT_KO_ROUND = 'finals';
 
-        // Asegurarnos de que estamos en la sub-pestaña "Partidos" y no en "Tablas"
-        const subTabBtn = document.querySelector('.tab-btn[data-subtarget="pred-partidos"]');
-        if (subTabBtn) subTabBtn.click();
-        
-        // Cambiar el filtro al día correcto del partido para que exista en el DOM
-        const targetDay = dayKey(next);
-        if (FILTERS.predictions.dia !== targetDay) {
-            FILTERS.predictions.dia = targetDay;
-            renderFilterBar('predictions-filters', 'predictions', renderPredictionsForm);
-            renderPredictionsForm();
+            // Determinar el día correcto
+            CURRENT_KO_DAY = dayKey(next);
+            
+            // Actualizar botones de ronda visualmente
+            document.querySelectorAll('#knockout-rounds-tabs .chip').forEach(c => c.classList.remove('active'));
+            const activeRoundBtn = document.querySelector(`#knockout-rounds-tabs .chip[data-round="${CURRENT_KO_ROUND}"]`);
+            if (activeRoundBtn) activeRoundBtn.classList.add('active');
+
+            // Renderizar eliminatorias (esto también construirá y activará el botón de día correcto)
+            renderKnockoutBracket();
+        } else {
+            // Ir a Fase de Grupos
+            const tabBtn = document.querySelector('.tab-btn[data-target="user-predictions"]');
+            if (tabBtn) tabBtn.click();
+
+            // Asegurarnos de que estamos en la sub-pestaña "Partidos" y no en "Tablas"
+            const subTabBtn = document.querySelector('.tab-btn[data-subtarget="pred-partidos"]');
+            if (subTabBtn) subTabBtn.click();
+            
+            // Cambiar el filtro al día correcto del partido para que exista en el DOM
+            const targetDay = dayKey(next);
+            if (FILTERS.predictions.dia !== targetDay) {
+                FILTERS.predictions.dia = targetDay;
+                renderFilterBar('predictions-filters', 'predictions', renderPredictionsForm);
+                renderPredictionsForm();
+            }
         }
         
         // Hacer scroll hacia el partido específico
@@ -759,47 +831,129 @@ function renderKnockoutBracket() {
     const container = document.getElementById('knockout-bracket-container');
     if (!container) return;
 
-    const r32 = APP_MATCHES.filter(m => m.jornada === 'Round of 32');
-    const r16 = APP_MATCHES.filter(m => m.jornada === 'Round of 16');
-    const qf = APP_MATCHES.filter(m => m.jornada === 'Quarter-final');
-    const sf = APP_MATCHES.filter(m => m.jornada === 'Semi-final');
-    const finals = APP_MATCHES.filter(m => m.jornada === 'Match for third place' || m.jornada === 'Final');
+    let allMatches = [];
+    let title = "";
 
-    if (r32.length === 0) {
-        container.innerHTML = '<p class="text-muted" style="text-align:center;">Las eliminatorias aún no están disponibles en el calendario de la API.</p>';
+    switch(CURRENT_KO_ROUND) {
+        case 'r32': 
+            allMatches = APP_MATCHES.filter(m => String(m.jornada).toLowerCase().includes('32') || String(m.jornada).toLowerCase().includes('dieciseisavos'));
+            title = "Dieciseisavos de Final";
+            break;
+        case 'r16':
+            allMatches = APP_MATCHES.filter(m => String(m.jornada).toLowerCase().includes('16') || String(m.jornada).toLowerCase().includes('octavos'));
+            title = "Octavos de Final";
+            break;
+        case 'qf':
+            allMatches = APP_MATCHES.filter(m => String(m.jornada).toLowerCase().includes('quarter') || String(m.jornada).toLowerCase().includes('cuartos'));
+            title = "Cuartos de Final";
+            break;
+        case 'sf':
+            allMatches = APP_MATCHES.filter(m => String(m.jornada).toLowerCase().includes('semi'));
+            title = "Semifinales";
+            break;
+        case 'finals':
+            allMatches = APP_MATCHES.filter(m => {
+                const j = String(m.jornada).toLowerCase();
+                return (j.includes('final') || j.includes('third') || j.includes('tercer')) && 
+                       !j.includes('semi') && !j.includes('quarter') && 
+                       !j.includes('octavos') && !j.includes('dieciseisavos');
+            });
+            title = "Finales y Tercer Puesto";
+            break;
+    }
+
+    const dateContainer = document.getElementById('knockout-date-filters');
+
+    if (allMatches.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-hourglass-start"></i><p>Esta fase aún no está disponible en el calendario de la API.</p></div>';
+        if (dateContainer) dateContainer.innerHTML = '';
         return;
     }
 
-    const renderCol = (title, matches) => {
-        let html = `<div class="bracket-col"><h4 class="bracket-col-title">${title}</h4>`;
-        matches.forEach(m => {
-            html += `
-                <div class="bracket-match">
-                    <div class="bm-team">
-                        <span class="bm-team-name">${flagImg(m.equipo_local)} ${m.equipo_local}</span>
-                        <input type="number" placeholder="-" disabled title="Predicciones bloqueadas hasta fin de grupos">
-                    </div>
-                    <div class="bm-team">
-                        <span class="bm-team-name">${flagImg(m.equipo_visitante)} ${m.equipo_visitante}</span>
-                        <input type="number" placeholder="-" disabled title="Predicciones bloqueadas hasta fin de grupos">
-                    </div>
-                    <div class="bm-meta">${formatTime(m)} · Partido ${m.id}</div>
-                </div>
-            `;
+    // Filtrado de fechas
+    const uniqueDays = [...new Set(allMatches.slice().sort((a, b) => kickoffDate(a) - kickoffDate(b)).map(dayKey))];
+    
+    if (CURRENT_KO_DAY !== 'all' && !uniqueDays.includes(CURRENT_KO_DAY)) {
+        CURRENT_KO_DAY = 'all';
+    }
+
+    if (dateContainer) {
+        const today = todayKey();
+        let dateHtml = `
+            <button class="day-pill ${CURRENT_KO_DAY === 'all' ? 'active' : ''}" data-day="all">
+                <span class="day-pill-wd" style="margin: auto;">TODOS</span>
+            </button>`;
+            
+        uniqueDays.forEach(d => {
+            const date = new Date(`${d}T12:00:00`);
+            const wd = date.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
+            const isToday = d === today;
+            
+            dateHtml += `
+                <button class="day-pill ${CURRENT_KO_DAY === d ? 'active' : ''} ${isToday ? 'today' : ''}" data-day="${d}">
+                    <span class="day-pill-wd">${isToday ? 'HOY' : wd}</span>
+                    <span class="day-pill-num">${date.getDate()}</span>
+                    <span class="day-pill-month">${date.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')}</span>
+                </button>`;
         });
-        html += `</div>`;
-        return html;
-    };
+        dateContainer.innerHTML = dateHtml;
+
+        dateContainer.querySelectorAll('.day-pill').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                CURRENT_KO_DAY = e.currentTarget.getAttribute('data-day');
+                renderKnockoutBracket();
+            });
+        });
+    }
+
+    let filteredMatches = allMatches;
+    if (CURRENT_KO_DAY !== 'all') {
+        filteredMatches = allMatches.filter(m => dayKey(m) === CURRENT_KO_DAY);
+    }
 
     container.innerHTML = `
-        <div class="bracket-wrapper">
-            ${renderCol('Dieciseisavos', r32)}
-            ${renderCol('Octavos', r16)}
-            ${renderCol('Cuartos', qf)}
-            ${renderCol('Semifinal', sf)}
-            ${renderCol('Finales', finals)}
+        <div class="jornada-block" style="margin-bottom: 2rem;">
+            <h3 class="jornada-title" style="color: var(--gold); border-bottom: 1px solid var(--color-border); padding-bottom: 5px;">${title}</h3>
+            <div class="match-list" style="margin-top: 10px;">
+                ${renderMatchList(filteredMatches, predictionCard)}
+            </div>
         </div>
     `;
+
+    if (KNOCKOUTS_ENABLED) {
+        container.querySelectorAll('.btn-save-single').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const btnEl = e.currentTarget;
+                const matchDiv = btnEl.closest('.match-card');
+                const id = matchDiv.getAttribute('data-match');
+                const lVal = matchDiv.querySelector('.pred-l').value;
+                const vVal = matchDiv.querySelector('.pred-v').value;
+                const statusDiv = matchDiv.querySelector('.save-status');
+                
+                if (lVal === '' || vVal === '') {
+                    statusDiv.innerText = 'Llena ambos';
+                    statusDiv.style.color = 'var(--color-error)';
+                    return;
+                }
+                
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    const existingMatches = { ...myPredictions() };
+                    existingMatches[id] = { l: lVal, v: vVal };
+                    await saveUserPredictions(currentUser.uid, existingMatches);
+                    statusDiv.innerText = 'Guardado';
+                    statusDiv.style.color = 'var(--color-success)';
+                } catch (err) {
+                    statusDiv.innerText = 'Error';
+                    statusDiv.style.color = 'var(--color-error)';
+                }
+                btnEl.disabled = false;
+                btnEl.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar';
+                setTimeout(() => { statusDiv.innerText = ''; }, 2000);
+            });
+        });
+    }
 }
 
 // --- VISTAS DE USUARIO ---
@@ -845,12 +999,13 @@ function predictionCard(match) {
     const dateObj = kickoffDate(match);
     const isMadrugada = dateObj.getHours() >= 0 && dateObj.getHours() < 6;
     const madrugadaBadge = isMadrugada ? `<span class="madrugada-badge" style="margin-left: 5px; color: var(--color-primary); font-size: 0.75rem;"><i class="fa-solid fa-moon"></i> Madrugada</span>` : '';
+    const jTxt = isNaN(match.jornada) ? match.jornada : `J${match.jornada}`;
 
     return `
         <div class="match-card ${isLocked ? 'locked' : ''}" id="match-card-${match.id}" data-match="${match.id}">
             ${badgeHtml}
             <div class="match-header">
-                <span class="match-meta"><span class="jornada-chip">J${match.jornada}</span> ${formatTime(match)} ${madrugadaBadge}</span>
+                <span class="match-meta"><span class="jornada-chip">${jTxt}</span> ${formatTime(match)} ${madrugadaBadge}</span>
                 ${statusChip(match)}
             </div>
             <div class="match-teams">
@@ -892,7 +1047,7 @@ function renderPredictionsForm() {
         container.innerHTML = '<p class="empty-state">El fixture aún no está disponible.</p>';
         return;
     }
-    const matches = applyFilter(FILTERS.predictions);
+    const matches = applyFilter(FILTERS.predictions, true); // true = isGroupStage
     container.innerHTML = `<div class="match-list">${renderMatchList(matches, predictionCard)}</div>`;
 
     container.querySelectorAll('.btn-save-single').forEach(btn => {
@@ -941,8 +1096,12 @@ function renderPredictionsForm() {
 function computeUserStats(uid) {
     const preds = (GROUP_PREDS[uid] && GROUP_PREDS[uid].matches) || {};
     let total = 0, exactos = 0;
+    const resetDateStr = CURRENT_GROUP_DATA?.resetDate || currentUserData?.resetDate;
+    const resetDate = resetDateStr ? new Date(resetDateStr) : null;
+
     APP_MATCHES.forEach(m => {
         if (hasResult(m)) {
+            if (resetDate && kickoffDate(m) <= resetDate) return;
             const p = preds[m.id];
             if (p) {
                 const pts = calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
@@ -983,6 +1142,34 @@ function renderRankingTable() {
         item.addEventListener('click', () => showOtherUserPredictions(u.uid, u.nombre_usuario));
         list.appendChild(item);
     });
+
+    if (CURRENT_GROUP_DATA && CURRENT_GROUP_DATA.podioFaseA && CURRENT_GROUP_DATA.podioFaseA.length > 0) {
+        let podiumHtml = `
+        <div style="margin-top: 30px; padding: 20px; background: rgba(255, 215, 0, 0.05); border-radius: var(--radius); border: 1px solid var(--gold);">
+            <h3 style="text-align: center; color: var(--gold); margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <i class="fa-solid fa-trophy"></i> Podio Histórico (Fase de Grupos)
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+        `;
+        
+        CURRENT_GROUP_DATA.podioFaseA.forEach((u, index) => {
+            const initials = u.nombre_usuario.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            podiumHtml += `
+                <div class="ranking-item podium" style="margin-bottom: 0; cursor: default;">
+                    <div class="rank-pos">${medals[index] || index + 1}</div>
+                    <div class="rank-avatar">${initials}</div>
+                    <div class="rank-name">${u.nombre_usuario} ${u.uid === currentUser.uid ? '<span class="me-tag">Tú</span>' : ''}</div>
+                    <div class="rank-stat">${u.exactos}</div>
+                    <div class="rank-pts" style="color: var(--gold);">${u.total}</div>
+                </div>
+            `;
+        });
+        
+        podiumHtml += `</div></div>`;
+        const podiumDiv = document.createElement('div');
+        podiumDiv.innerHTML = podiumHtml;
+        list.appendChild(podiumDiv);
+    }
 }
 
 function showOtherUserPredictions(targetUid, targetUsername) {
@@ -1135,7 +1322,7 @@ function groupBetsCard(match) {
 function renderGroupBets() {
     const container = document.getElementById('group-bets-container');
     // Solo partidos con apuestas cerradas: transparencia sin exponer predicciones futuras
-    const matches = applyFilter(FILTERS.group).filter(isMatchLocked);
+    const matches = applyFilter(FILTERS.group, true).filter(isMatchLocked);
     if (matches.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-user-secret"></i><p>Este día no tiene partidos con apuestas cerradas. Las predicciones son secretas hasta 1 hora antes de cada partido.</p></div>`;
         return;
@@ -1148,6 +1335,7 @@ async function renderAdminViews() {
     renderGroupsListAdmin();
     renderUsersListAdmin();
     renderAdminResultsList();
+    renderAdminKnockoutsList();
     renderAdminRankings();
 }
 
@@ -1178,10 +1366,7 @@ function adminResultCard(match) {
     `;
 }
 
-function renderAdminResultsList() {
-    const container = document.getElementById('admin-results-list');
-    container.innerHTML = renderMatchList(APP_MATCHES, adminResultCard);
-
+function bindAdminSaveButtons(container) {
     container.querySelectorAll('.btn-save-admin-result').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const btnEl = e.currentTarget;
@@ -1196,7 +1381,29 @@ function renderAdminResultsList() {
             btnEl.disabled = true;
 
             try {
-                const idx = BASE_MATCHES.findIndex(m => m.id === id);
+                let idx = BASE_MATCHES.findIndex(m => m.id === id);
+                
+                // Si el partido viene directo de la API (eliminatorias), inyectarlo en BASE_MATCHES primero
+                if (idx === -1) {
+                    const appMatch = APP_MATCHES.find(m => m.id === id);
+                    if (appMatch) {
+                        BASE_MATCHES.push({
+                            id: appMatch.id,
+                            jornada: appMatch.jornada,
+                            equipo_local: appMatch.equipo_local,
+                            equipo_visitante: appMatch.equipo_visitante,
+                            fecha_hora: appMatch.fecha_hora,
+                            estadio: appMatch.estadio,
+                            ciudad: appMatch.ciudad,
+                            pais_sede: appMatch.pais_sede,
+                            goles_local_real: lVal === '' ? null : parseInt(lVal),
+                            goles_visitante_real: vVal === '' ? null : parseInt(vVal),
+                            grupo: null
+                        });
+                        idx = BASE_MATCHES.length - 1;
+                    }
+                }
+
                 if (idx !== -1) {
                     BASE_MATCHES[idx].goles_local_real = lVal === '' ? null : parseInt(lVal);
                     BASE_MATCHES[idx].goles_visitante_real = vVal === '' ? null : parseInt(vVal);
@@ -1224,6 +1431,13 @@ function renderAdminResultsList() {
     });
 }
 
+function renderAdminResultsList() {
+    const container = document.getElementById('admin-results-list');
+    const groupMatches = APP_MATCHES.filter(m => !isKnockout(m));
+    container.innerHTML = renderMatchList(groupMatches, adminResultCard);
+    bindAdminSaveButtons(container);
+}
+
 async function createGroup() {
     const btn = document.getElementById('btn-create-group');
     const name = document.getElementById('new-group-name').value.trim();
@@ -1247,9 +1461,86 @@ async function renderGroupsListAdmin() {
     const snapshot = await getDocs(collection(db, "grupos"));
     list.innerHTML = '';
     snapshot.forEach(doc => {
-        list.innerHTML += `<div class="admin-group-item">
-            <strong>${doc.data().nombre}</strong> <small class="text-muted">(ID: ${doc.id})</small>
+        const d = doc.data();
+        const resetDateStr = d.resetDate ? new Date(d.resetDate).toLocaleString() : 'Nunca';
+        list.innerHTML += `<div class="admin-group-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: var(--radius);">
+            <div>
+                <strong>${d.nombre}</strong> <small class="text-muted">(ID: ${doc.id})</small>
+                <div style="font-size: 0.8rem; color: var(--color-text-muted);">Último reseteo: ${resetDateStr}</div>
+            </div>
+            <button class="btn btn-sm btn-ghost btn-reset-group" data-id="${doc.id}" style="color:var(--color-error); border:1px solid var(--color-error);" title="Reiniciar puntos a 0">
+                <i class="fa-solid fa-rotate-left"></i> Resetear Tabla
+            </button>
         </div>`;
+    });
+
+    list.querySelectorAll('.btn-reset-group').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const groupId = e.currentTarget.dataset.id;
+            const confirmMsg = `¿ESTÁS SEGURO? Esta acción es irreversible.\n\nTodos los usuarios de este grupo volverán a 0 puntos.\n(El historial de sus votos pasados se mantendrá intacto, pero dejarán de sumar a la tabla actual).`;
+            if (confirm(confirmMsg)) {
+                e.currentTarget.disabled = true;
+                e.currentTarget.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    // --- CALCULAR PODIO HISTÓRICO ---
+                    const usersSnap = await getDocs(collection(db, "usuarios"));
+                    const groupUsers = [];
+                    usersSnap.forEach(uDoc => {
+                        const u = uDoc.data();
+                        if (u.grupo_id === groupId && u.estado !== 'admin') groupUsers.push({ uid: uDoc.id, ...u });
+                    });
+
+                    const groupPreds = {};
+                    for (const u of groupUsers) {
+                        const pDoc = await getDoc(doc(db, "predicciones", u.uid));
+                        if (pDoc.exists()) groupPreds[u.uid] = pDoc.data().matches || {};
+                    }
+
+                    const groupDocSnap = await getDoc(doc(db, "grupos", groupId));
+                    const oldResetDate = groupDocSnap.exists() && groupDocSnap.data().resetDate ? new Date(groupDocSnap.data().resetDate) : null;
+
+                    const ranked = groupUsers.map(u => {
+                        const preds = groupPreds[u.uid] || {};
+                        let total = 0, exactos = 0;
+                        APP_MATCHES.forEach(m => {
+                            if (hasResult(m)) {
+                                if (oldResetDate && kickoffDate(m) <= oldResetDate) return;
+                                const p = preds[m.id];
+                                if (p) {
+                                    const pts = calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
+                                    total += pts;
+                                    if (pts === 5) exactos++;
+                                }
+                            }
+                        });
+                        return { uid: u.uid, nombre_usuario: u.nombre_usuario, total, exactos };
+                    }).sort((a, b) => b.total - a.total || b.exactos - a.exactos || a.nombre_usuario.localeCompare(b.nombre_usuario));
+
+                    const podioFaseA = ranked.slice(0, 3); // TOP 3
+                    // --------------------------------
+
+                    const newResetDate = new Date().toISOString();
+                    await setDoc(doc(db, "grupos", groupId), { 
+                        resetDate: newResetDate,
+                        podioFaseA: podioFaseA
+                    }, { merge: true });
+                    
+                    alert('Tabla reseteada y Podio Histórico guardado exitosamente.');
+                    renderGroupsListAdmin();
+                    
+                    if (currentUserData && currentUserData.grupo_id === groupId) {
+                        currentUserData.resetDate = newResetDate;
+                        // También necesitaremos refrescar los datos del grupo si estamos en él, 
+                        // pero la próxima carga desde Firebase lo hará.
+                        renderUserViews();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Error al resetear la tabla: ' + err.message);
+                    renderGroupsListAdmin();
+                }
+            }
+        });
     });
 }
 
@@ -1327,11 +1618,14 @@ async function renderAdminRankings() {
             predsData[p.id] = p.data();
         });
 
-        function computeStatsForAdmin(uid) {
+        function computeStatsForAdmin(uid, resetDateStr) {
             const preds = (predsData[uid] && predsData[uid].matches) || {};
             let total = 0, exactos = 0;
+            const resetDate = resetDateStr ? new Date(resetDateStr) : null;
+
             APP_MATCHES.forEach(m => {
                 if (hasResult(m)) {
+                    if (resetDate && kickoffDate(m) <= resetDate) return;
                     const p = preds[m.id];
                     if (p) {
                         const pts = calculateMatchPoints(p.l, p.v, m.goles_local_real, m.goles_visitante_real);
@@ -1348,7 +1642,7 @@ async function renderAdminRankings() {
         for (const [groupId, group] of Object.entries(groups)) {
             if (group.users.length === 0) continue;
 
-            const ranked = group.users.map(u => ({ ...u, ...computeStatsForAdmin(u.uid) }))
+            const ranked = group.users.map(u => ({ ...u, ...computeStatsForAdmin(u.uid, group.resetDate) }))
                 .sort((a, b) => b.total - a.total || b.exactos - a.exactos || a.nombre_usuario.localeCompare(b.nombre_usuario));
 
             const card = document.createElement('div');
@@ -1401,5 +1695,44 @@ async function renderAdminRankings() {
     } catch (e) {
         console.error(e);
         container.innerHTML = '<div class="error-msg">Error cargando tablas de posiciones.</div>';
+    }
+}
+
+async function renderAdminKnockoutsList() {
+    const list = document.getElementById('admin-knockouts-results-list');
+    
+    const koMatches = APP_MATCHES.filter(m => isKnockout(m));
+    
+    if (koMatches.length === 0) {
+        list.innerHTML = '<p class="text-muted" style="text-align:center;">No hay partidos de eliminatorias disponibles aún desde la API.</p>';
+    } else {
+        list.innerHTML = renderMatchList(koMatches, adminResultCard);
+        bindAdminSaveButtons(list);
+    }
+
+    const btnToggle = document.getElementById('btn-toggle-knockouts');
+    if (btnToggle) {
+        const newBtnToggle = btnToggle.cloneNode(true);
+        btnToggle.parentNode.replaceChild(newBtnToggle, btnToggle);
+        
+        newBtnToggle.innerHTML = KNOCKOUTS_ENABLED 
+            ? '<i class="fa-solid fa-lock-open"></i> Estado actual: DESBLOQUEADO (Cerrar)' 
+            : '<i class="fa-solid fa-lock"></i> Estado actual: BLOQUEADO (Abrir Votaciones)';
+        newBtnToggle.className = `btn ${KNOCKOUTS_ENABLED ? 'btn-success' : 'btn-secondary'}`;
+
+        newBtnToggle.addEventListener('click', async () => {
+            newBtnToggle.disabled = true;
+            newBtnToggle.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+            try {
+                const newState = !KNOCKOUTS_ENABLED;
+                await setDoc(doc(db, "sistema", "partidos"), { knockouts_enabled: newState }, { merge: true });
+                KNOCKOUTS_ENABLED = newState;
+                renderAdminKnockoutsList();
+            } catch (err) {
+                console.error(err);
+                alert('Error al cambiar el estado: ' + err.message);
+                renderAdminKnockoutsList();
+            }
+        });
     }
 }

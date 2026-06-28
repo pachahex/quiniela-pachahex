@@ -49,27 +49,38 @@ export function pairKey(teamA, teamB) {
 
 function parseApiData(data) {
     const byPair = new Map();
+    const knockouts = [];
+    
     for (const m of data.matches || []) {
-        const t1 = teamFromEnglish(m.team1);
-        const t2 = teamFromEnglish(m.team2);
-        // Solo fase de grupos: partidos con ambos equipos definidos (los placeholders tipo "1A" no mapean)
-        if (!t1 || !t2) continue;
         const venue = VENUES[m.ground] || null;
-        byPair.set(pairKey(t1, t2), {
-            local: t1,
-            visitante: t2,
+        const apiMatch = {
             fecha_hora: toIso(m.date, m.time),
             grupo: m.group ? m.group.replace('Group', 'Grupo') : null,
             num: m.num || null,
             estadio: venue ? venue.estadio : (m.ground || null),
             ciudad: venue ? venue.ciudad : null,
             pais_sede: venue ? venue.pais : null,
-            // score.ft = [goles_local, goles_visitante] cuando el partido terminó
             goles_local: (m.score && Array.isArray(m.score.ft)) ? m.score.ft[0] : null,
-            goles_visitante: (m.score && Array.isArray(m.score.ft)) ? m.score.ft[1] : null
-        });
+            goles_visitante: (m.score && Array.isArray(m.score.ft)) ? m.score.ft[1] : null,
+            raw_local: typeof m.team1 === 'string' ? m.team1 : (m.team1 ? m.team1.name : "TBD"),
+            raw_visit: typeof m.team2 === 'string' ? m.team2 : (m.team2 ? m.team2.name : "TBD"),
+            jornada: m.round || null
+        };
+
+        const t1 = teamFromEnglish(m.team1);
+        const t2 = teamFromEnglish(m.team2);
+        
+        if (t1 && t2) {
+            apiMatch.local = t1;
+            apiMatch.visitante = t2;
+            byPair.set(pairKey(t1, t2), apiMatch);
+        }
+
+        if (!m.group) {
+            knockouts.push(apiMatch);
+        }
     }
-    return byPair;
+    return { byPair, knockouts };
 }
 
 async function fetchWithCache() {
@@ -97,10 +108,13 @@ async function fetchWithCache() {
 // Devuelve { matches, meta }. Si la API y la caché fallan, devuelve el fixture base intacto.
 export async function loadTournamentData(localMatches) {
     let byPair = null;
+    let knockouts = [];
     let meta = { apiOk: false, fromCache: false, ts: null };
     try {
         const { data, fromCache, ts } = await fetchWithCache();
-        byPair = parseApiData(data);
+        const parsed = parseApiData(data);
+        byPair = parsed.byPair;
+        knockouts = parsed.knockouts;
         meta = { apiOk: true, fromCache, ts };
     } catch (e) {
         console.error('Sin datos de API ni caché; usando solo Firestore', e);
@@ -125,6 +139,35 @@ export async function loadTournamentData(localMatches) {
         }
         return m;
     });
+
+    if (knockouts.length > 0) {
+        knockouts.forEach(ko => {
+            const t1 = teamFromEnglish(ko.raw_local);
+            const t2 = teamFromEnglish(ko.raw_visit);
+            
+            let alreadyExists = false;
+            if (t1 && t2) {
+                const key = pairKey(t1, t2);
+                alreadyExists = matches.some(m => pairKey(m.equipo_local, m.equipo_visitante) === key);
+            }
+            
+            if (!alreadyExists) {
+                matches.push({
+                    id: `ko_${ko.num}`,
+                    jornada: ko.jornada || 'Eliminatorias',
+                    equipo_local: t1 || ko.raw_local,
+                    equipo_visitante: t2 || ko.raw_visit,
+                    fecha_hora: ko.fecha_hora,
+                    estadio: ko.estadio,
+                    ciudad: ko.ciudad,
+                    pais_sede: ko.pais_sede,
+                    goles_local_real: ko.goles_local,
+                    goles_visitante_real: ko.goles_visitante,
+                    grupo: null
+                });
+            }
+        });
+    }
 
     return { matches, meta };
 }

@@ -93,6 +93,7 @@
                 <button class="tab-btn active" data-target="admin-users"><i class="fa-solid fa-user-gear"></i><span>Usuarios</span></button>
                 <button class="tab-btn" data-target="admin-groups"><i class="fa-solid fa-users"></i><span>Grupos</span></button>
                 <button class="tab-btn" data-target="admin-results"><i class="fa-solid fa-pen-to-square"></i><span>Resultados</span></button>
+                <button class="tab-btn" data-target="admin-knockouts"><i class="fa-solid fa-sitemap"></i><span>Eliminatorias</span></button>
                 <button class="tab-btn" data-target="admin-rankings"><i class="fa-solid fa-ranking-star"></i><span>Tablas</span></button>
             </div>
 
@@ -123,6 +124,22 @@
                     <h3>Resultados Manuales</h3>
                     <p class="text-muted">Ingresa los resultados manualmente aquí. Si la API oficial ya tiene un resultado, sobrescribirá temporalmente tus cambios locales, manteniendo el sistema robusto.</p>
                     <div id="admin-results-list" class="match-list"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="admin-knockouts">
+                <div class="card">
+                    <div style="margin-bottom: 25px; padding: 15px; background: rgba(255, 215, 0, 0.1); border-left: 4px solid var(--color-gold); border-radius: 4px;">
+                        <strong style="font-size: 1.1rem;"><i class="fa-solid fa-lock-open"></i> Votaciones de Eliminatorias</strong>
+                        <p class="text-muted" style="margin: 10px 0;">Activa este interruptor cuando finalice la fase de grupos. Esto desbloqueará las casillas de eliminatorias para que todos puedan empezar a predecir.</p>
+                        <button id="btn-toggle-knockouts" class="btn btn-secondary" style="width: 100%;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando estado...</button>
+                    </div>
+
+                    <div style="margin-top: 30px;">
+                        <h3>Ingresar Resultados Oficiales</h3>
+                        <p class="text-muted">La API carga los resultados automáticamente, pero si se retrasa o hay un error, puedes forzar el resultado oficial de cualquier partido de eliminatoria aquí.</p>
+                        <div id="admin-knockouts-results-list" class="match-list" style="margin-top: 15px;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -204,10 +221,28 @@
                 <div class="tab-bg-banner" style="background-image: url('img/banners/formularios.webp');"></div>
                 <div class="transparency-intro">
                     <i class="fa-solid fa-sitemap"></i>
-                    <p>Fase Eliminatoria. Las predicciones estarán disponibles cuando terminen los grupos.</p>
+                    <p>Fase Eliminatoria. Selecciona la ronda que deseas predecir.</p>
                 </div>
-                <div id="knockout-bracket-container" class="bracket-container">
-                    <!-- The epic bracket will be rendered here via JS -->
+
+                <div class="filter-bar" style="top: 56px; z-index: 40; position: sticky; margin-bottom: 15px;">
+                    <div class="chips-scroll" style="border-bottom: 1px solid var(--color-border); padding-bottom: 5px; margin-bottom: 5px;">
+                        <div class="filter-row" id="knockout-rounds-tabs">
+                            <button class="chip active" data-round="r32">Dieciseisavos</button>
+                            <button class="chip" data-round="r16">Octavos</button>
+                            <button class="chip" data-round="qf">Cuartos</button>
+                            <button class="chip" data-round="sf">Semifinal</button>
+                            <button class="chip" data-round="finals">Finales</button>
+                        </div>
+                    </div>
+                    <div class="chips-scroll">
+                        <div class="filter-row day-strip" id="knockout-date-filters">
+                            <!-- Date chips will be generated here by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="knockout-bracket-container" style="padding-top: 10px;">
+                    <!-- The match cards will be rendered here via JS -->
                 </div>
             </div>
 
@@ -256,9 +291,10 @@
                             <li>Si tu cuenta está bloqueada (por falta de pago), no podrás guardar ni actualizar predicciones.</li>
                         </ul>
 
-                        <h4>5. Fase B (Pendiente y en Desarrollo)</h4>
+                        <h4>5. Fase de Eliminatorias y Reseteo</h4>
                         <ul>
-                            <li>La Fase B (eliminatorias de la quiniela) está actualmente <strong>pendiente y en desarrollo</strong>. Se habilitará oportunamente.</li>
+                            <li>Al finalizar la fase de grupos de manera oficial, se habilitarán las predicciones para el árbol de eliminatorias.</li>
+                            <li><strong>Reseteo de Tabla:</strong> Cada grupo decidirá internamente (por la votación o consenso que sus miembros elijan) si prefieren mantener el puntaje acumulado de la fase de grupos, o si prefieren reiniciar sus tablas a cero (0) puntos para que las eliminatorias sean un torneo nuevo.</li>
                         </ul>
                     </div>
                 </div>
