@@ -1440,15 +1440,15 @@ function loadDailyChat(day) {
 
         let html = '';
         messages.forEach(msg => {
-            const initials = msg.nombre_usuario.split(/\\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-            const isMe = msg.uid === currentUser.uid;
+            const initials = msg.nombre_usuario.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
             
             html += `
-                <div style="display: flex; gap: 10px; flex-direction: ${isMe ? 'row-reverse' : 'row'}; align-items: flex-end;">
-                    <div class="rank-avatar" style="width: 30px; height: 30px; font-size: 0.7rem; flex-shrink: 0;">${initials}</div>
-                    <div style="background: ${isMe ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)'}; color: ${isMe ? '#000' : 'var(--color-text)'}; padding: 8px 12px; border-radius: 12px; border-bottom-${isMe ? 'right' : 'left'}-radius: 2px; max-width: 80%; word-break: break-word;">
-                        ${!isMe ? `<div style="font-size: 0.7rem; opacity: 0.7; margin-bottom: 2px;">${msg.nombre_usuario}</div>` : ''}
-                        <div style="font-size: 0.9rem;">${msg.texto}</div>
+                <div style="display: flex; gap: 10px; flex-direction: row; align-items: flex-start; margin-bottom: 5px;">
+                    <div class="rank-avatar" style="width: 30px; height: 30px; font-size: 0.7rem; flex-shrink: 0; margin-top: 2px;">${initials}</div>
+                    <div style="background: rgba(255,255,255,0.05); color: var(--color-text); padding: 8px 12px; border-radius: 12px; border-top-left-radius: 2px; max-width: 90%; word-break: break-word; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.95rem; line-height: 1.4;">
+                            <strong style="color: var(--gold);">${msg.nombre_usuario}:</strong> <span style="color: rgba(255,255,255,0.9);">${msg.texto}</span>
+                        </div>
                     </div>
                 </div>
             `;
