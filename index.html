@@ -254,6 +254,25 @@
                 </div>
                 <div id="group-filters"></div>
                 <div id="group-bets-container"></div>
+                
+                <!-- Chat Diario -->
+                <div id="daily-chat-container" class="card" style="margin-top: 2rem; display: flex; flex-direction: column; max-height: 500px; padding: 15px;">
+                    <h3 style="color: var(--gold); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-comments"></i> Chat
+                    </h3>
+                    
+                    <div id="chat-messages-list" style="flex: 1; overflow-y: auto; padding-right: 5px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Messages go here -->
+                        <div class="empty-state"><p>Selecciona un día para ver los comentarios.</p></div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; border-top: 1px solid var(--color-border); padding-top: 15px;">
+                        <input type="text" id="chat-input" class="input-field" placeholder="Escribe un comentario..." style="flex: 1;" maxlength="150" autocomplete="off">
+                        <button id="btn-send-chat" class="btn btn-primary" style="padding: 10px 15px; flex-shrink: 0;">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Tab: Reglas del Juego -->

@@ -12,7 +12,12 @@ import {
     setDoc,
     getDoc,
     collection,
-    getDocs
+    getDocs,
+    query,
+    where,
+    onSnapshot,
+    addDoc,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { flagImg, canonicalTeam } from './teams.js';
@@ -47,6 +52,7 @@ let KNOCKOUTS_ENABLED = false; // Maestro de eliminatorias
 let CURRENT_KO_ROUND = 'r32'; // Paginación de eliminatorias
 let CURRENT_KO_DAY = 'all'; // Filtro de fechas en eliminatorias
 let CURRENT_GROUP_DATA = null; // Datos del grupo actual (incluye podio y fecha reset)
+let unsubscribeChat = null; // Listener del chat diario
 let tickerInterval = null;
 let refreshInterval = null;
 
@@ -327,6 +333,17 @@ function initApp() {
     document.getElementById('login-password').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handleAuth(isRegisterMode);
     });
+
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+    }
+    const btnSendChat = document.getElementById('btn-send-chat');
+    if (btnSendChat) {
+        btnSendChat.addEventListener('click', sendChatMessage);
+    }
 
     const usernameInput = document.getElementById('login-username');
     const hint = document.getElementById('username-hint');
@@ -1373,9 +1390,106 @@ function renderGroupBets() {
     const matches = applyFilter(FILTERS.group, false).filter(isMatchLocked);
     if (matches.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-user-secret"></i><p>Este día no tiene partidos con apuestas cerradas. Las predicciones son secretas hasta 1 hora antes de cada partido.</p></div>`;
-        return;
+    } else {
+        container.innerHTML = `<div class="match-list">${renderMatchList(matches, groupBetsCard)}</div>`;
     }
-    container.innerHTML = `<div class="match-list">${renderMatchList(matches, groupBetsCard)}</div>`;
+    
+    // Cargar chat del día
+    const selectedDay = FILTERS.group.dia || todayKey();
+    loadDailyChat(selectedDay);
+}
+
+// --- CHAT DIARIO ---
+function loadDailyChat(day) {
+    if (unsubscribeChat) {
+        unsubscribeChat();
+        unsubscribeChat = null;
+    }
+    const container = document.getElementById('chat-messages-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="empty-state"><p><i class="fa-solid fa-spinner fa-spin"></i> Cargando chat...</p></div>';
+
+    // Consultamos solo por grupo_id para evitar requerir índices compuestos en Firebase
+    const q = query(
+        collection(db, "comentarios"),
+        where("grupo_id", "==", currentUserData.grupo_id)
+    );
+
+    unsubscribeChat = onSnapshot(q, (snapshot) => {
+        const messages = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Filtramos localmente por día
+            if (data.dia === day) {
+                messages.push({ id: doc.id, ...data });
+            }
+        });
+
+        // Ordenar localmente por timestamp para no requerir índice compuesto en Firestore
+        messages.sort((a, b) => {
+            const timeA = a.timestamp ? a.timestamp.toMillis() : Date.now();
+            const timeB = b.timestamp ? b.timestamp.toMillis() : Date.now();
+            return timeA - timeB;
+        });
+
+        if (messages.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>Sé el primero en comentar este día.</p></div>';
+            return;
+        }
+
+        let html = '';
+        messages.forEach(msg => {
+            const initials = msg.nombre_usuario.split(/\\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            const isMe = msg.uid === currentUser.uid;
+            
+            html += `
+                <div style="display: flex; gap: 10px; flex-direction: ${isMe ? 'row-reverse' : 'row'}; align-items: flex-end;">
+                    <div class="rank-avatar" style="width: 30px; height: 30px; font-size: 0.7rem; flex-shrink: 0;">${initials}</div>
+                    <div style="background: ${isMe ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)'}; color: ${isMe ? '#000' : 'var(--color-text)'}; padding: 8px 12px; border-radius: 12px; border-bottom-${isMe ? 'right' : 'left'}-radius: 2px; max-width: 80%; word-break: break-word;">
+                        ${!isMe ? `<div style="font-size: 0.7rem; opacity: 0.7; margin-bottom: 2px;">${msg.nombre_usuario}</div>` : ''}
+                        <div style="font-size: 0.9rem;">${msg.texto}</div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        container.scrollTop = container.scrollHeight;
+    }, (error) => {
+        console.error("Error al cargar chat:", error);
+        container.innerHTML = '<div class="empty-state"><p style="color: var(--color-error);"><i class="fa-solid fa-triangle-exclamation"></i> Error de conexión con el chat.</p></div>';
+    });
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    const day = FILTERS.group.dia || todayKey();
+    if (!text) return;
+    
+    input.disabled = true;
+    const btn = document.getElementById('btn-send-chat');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    addDoc(collection(db, "comentarios"), {
+        grupo_id: currentUserData.grupo_id,
+        dia: day,
+        uid: currentUser.uid,
+        nombre_usuario: currentUserData.nombre_usuario,
+        texto: text,
+        timestamp: serverTimestamp()
+    }).then(() => {
+        input.value = '';
+    }).catch(err => {
+        console.error("Error al enviar mensaje", err);
+        alert("Error al enviar el mensaje.");
+    }).finally(() => {
+        input.disabled = false;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+        input.focus();
+    });
 }
 
 // --- ADMIN (solo usuarios, grupos y resultados) ---
