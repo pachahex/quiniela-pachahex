@@ -133,9 +133,14 @@ export async function loadTournamentData(localMatches) {
         m.pais_sede = api.pais_sede;
 
         const inverted = canonicalTeam(api.local) !== canonicalTeam(lm.equipo_local);
-        if (api.goles_local != null && api.goles_visitante != null) {
-            m.goles_local_real = inverted ? api.goles_visitante : api.goles_local;
-            m.goles_visitante_real = inverted ? api.goles_local : api.goles_visitante;
+        
+        // La verdad absoluta: Si el Administrador guardó un resultado manualmente en Firestore, 
+        // respetamos ese valor. Solo usamos la API si no hay nada guardado manualmente.
+        if (lm.goles_local_real == null || lm.goles_visitante_real == null) {
+            if (api.goles_local != null && api.goles_visitante != null) {
+                m.goles_local_real = inverted ? api.goles_visitante : api.goles_local;
+                m.goles_visitante_real = inverted ? api.goles_local : api.goles_visitante;
+            }
         }
         return m;
     });
